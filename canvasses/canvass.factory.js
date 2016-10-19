@@ -247,8 +247,7 @@ function canvassFactory ($resource, baseURL, storeFactory, resourceFactory, misc
     }
 
     addr.canvasser = canvasser._id;
-    var badge = '',
-      splits;
+    var badge = '';
     if (canvasser.person.firstname) {
       badge += getFirstLetters(canvasser.person.firstname);
     }

@@ -91,9 +91,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-userFactory.$inject = ['$resource', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'SCHEMA_CONST', 'USERSCHEMA', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'peopleFactory', 'addressFactory', 'NgDialogFactory'];
+userFactory.$inject = ['$resource', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'SCHEMA_CONST', 'USERSCHEMA', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'peopleFactory', 'addressFactory'];
 
-function userFactory ($resource, $filter, baseURL, storeFactory, resourceFactory, SCHEMA_CONST, USERSCHEMA, PEOPLESCHEMA, ADDRSCHEMA, peopleFactory, addressFactory, NgDialogFactory) {
+function userFactory ($resource, $filter, baseURL, storeFactory, resourceFactory, SCHEMA_CONST, USERSCHEMA, PEOPLESCHEMA, ADDRSCHEMA, peopleFactory, addressFactory) {
 
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033

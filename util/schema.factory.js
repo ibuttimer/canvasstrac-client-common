@@ -146,7 +146,7 @@ angular.module('ct.clientCommon')
 ;
 
 
-function Schema (SCHEMA_CONST) {
+function Schema () {
   this.fields = [];
   
   /**
@@ -171,7 +171,7 @@ function Schema (SCHEMA_CONST) {
       id: id
     });
     return (this.fields.length - 1);
-  }
+  };
   
   /**
    * Return the schema field with the specified index. If 
@@ -191,7 +191,7 @@ function Schema (SCHEMA_CONST) {
       }
     }
     return result;
-  }
+  };
 
   /**
    * Callback the specified function for each field in the schema, providing the field details as the callback arguments
@@ -206,7 +206,7 @@ function Schema (SCHEMA_CONST) {
                  this.fields[i].id);
       }
     }
-  }
+  };
 
   
 }
