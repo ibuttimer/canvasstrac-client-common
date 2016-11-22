@@ -5,9 +5,13 @@ angular.module('ct.clientCommon')
 
   .value('USER', {
     authenticated: false,
-    username: '',
     authToken: undefined,
-    id: ''
+
+    // mirroring user model properties
+    id: '',
+    username: '',
+    role: undefined,
+    person: undefined
   })
   .constant('AUTH_KEYS', (function () {
     return {
@@ -21,9 +25,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-AuthFactory.$inject = ['$resource', '$http', 'storeFactory', 'localStorage', 'baseURL', 'AUTH_KEYS', 'USER'];
+AuthFactory.$inject = ['$resource', '$http', 'storeFactory', 'localStorage', 'baseURL', 'miscUtilFactory', 'AUTH_KEYS', 'USER'];
 
-function AuthFactory ($resource, $http, storeFactory, localStorage, baseURL, AUTH_KEYS, USER) {
+function AuthFactory($resource, $http, storeFactory, localStorage, baseURL, miscUtilFactory, AUTH_KEYS, USER) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -50,7 +54,7 @@ function AuthFactory ($resource, $http, storeFactory, localStorage, baseURL, AUT
 
   function useCredentials (credentials) {
     var state = {
-      authenticated: (credentials !== undefined), // TODO method to verify authenticated against server
+      authenticated: !miscUtilFactory.isEmpty(credentials), // TODO method to verify authenticated against server
       username: '',
       authToken: undefined,
       id: ''
@@ -60,7 +64,6 @@ function AuthFactory ($resource, $http, storeFactory, localStorage, baseURL, AUT
       state.authToken = credentials.token;
       state.id = credentials.id;
     }
-
     // update value
     USER.authenticated = state.authenticated;
     USER.username = state.username;

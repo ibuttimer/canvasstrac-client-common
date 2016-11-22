@@ -68,8 +68,8 @@ angular.module('ct.clientCommon')
      * Create a Schema obkect
      * @returns {object} new Schema object
      */
-    function getSchema() {
-      return $injector.instantiate(Schema);
+    function getSchema(name, modelProps) {
+      return $injector.instantiate(Schema, { name: name, modelProps: modelProps });
     }
 
     /**
@@ -146,8 +146,10 @@ angular.module('ct.clientCommon')
 ;
 
 
-function Schema () {
+function Schema(name, modelProps) {
   this.fields = [];
+  this.name = name;
+  this.modelProps = modelProps;
   
   /**
    * Add a new entry to the Schema
@@ -200,15 +202,195 @@ function Schema () {
   this.forEachField = function (callback) {
     if (typeof callback === 'function') {
       for (var i = 0; i < this.fields.length; ++i) {
-        callback(i, this.fields[i].dialog, 
-                 this.fields[i].display, 
-                 this.fields[i].model, 
+        callback(i, this.fields[i].dialog,
+                 this.fields[i].display,
+                 this.fields[i].model,
                  this.fields[i].id);
       }
     }
   };
 
-  
+  /**
+   * Return an object representing this schema as a string
+   */
+  this.objectToString = function (obj) {
+    var str = '';
+    this.modelProps.forEach(function (field) {
+      if (str) {
+        str += ', ';
+      }
+      str += field.modelName + '=' + obj[field.modelName];
+    });
+    return this.name + ' {' + str + '}';
+  };
+
+  /**
+   * Return an initialised object representing this schema
+   */
+  this.getObject = function () {
+    var obj = {};
+    this.modelProps.forEach(function (field) {
+      obj[field.modelName] = field.dfltValue;
+    });
+    obj['schema'] = this;
+    obj['toString'] = function () {
+      return this.schema.objectToString(this);
+    }
+    return obj;
+  };
+
+  /**
+   * Return the default value for a field in this schema
+   */
+  this.getDfltValue = function (id) {
+    var i, value;
+    for (i = 0; i < this.modelProps.length; ++i) {
+      if (this.modelProps[i].id === id) {
+        value = this.modelProps[i].dfltValue;
+        break;
+      }
+    }
+    return value;
+  };
+
+  /**
+   * Read a property and sets its value in an object
+   * @param {object} from     - source to read properties from
+   * @param {object} args     - arguments object with following properties
+   *    {object} obj      - object to update, or if null/undefined a new object is created
+   *    {object} schemaId - schema id/array of schema id(s) to read, or if null/undefined all schema fields are read
+   *    {boolean} schemaExcludeMode - schema id(s) are ids to exclude 
+   *    {object} fromProp - object ({schema id}, {string}), specifying the property names to read from response for schema ids
+   *    {object} convert  - function({schema id}, {value}) to convert read values
+
+   * @param {object} obj      - object to update, or if null/undefined a new object is created
+   * @param {object} modelId  - schema id/array of schema id field(s) to read, or if null/undefined all schema fields are read
+   * @param {object} fromProp - from object property name/array of from object property names to read
+   * @param {object} convert  - function({schema id}, {value}) to convert read values
+   * @return updated/new object
+   */
+  this.readProperty = function (from, args  /*obj, modelId, fromProp, convert*/) {
+    args = (!args ? {} : args);
+    var i, j,
+      ids,
+      props = (!args.fromProp ? {} : args.fromProp),
+      obj = (!args.obj ? this.getObject() : args.obj);
+
+    if (!args.schemaId) {
+      // no schema ids specified so read all
+      ids = [];
+      this.modelProps.forEach(function (field) {
+        ids.push(field.id);
+      });
+    } else {
+      // make sure ids is an array
+      if (Array.isArray(args.schemaId)) {
+        ids = args.schemaId;
+      } else {
+        ids = [args.schemaId];
+      }
+      if (args.schemaExcludeMode) {
+        // schema ids are ids to exclude
+        var exIds = ids;
+        ids = [];
+        this.modelProps.forEach(function (field) {
+          var idx = exIds.findIndex(function (element) {
+            return (element === field.id);
+          });
+          if (idx === -1) {
+            ids.push(field.id);
+          }
+        });
+      }
+    }
+    // read properties
+    for (i = 0; i < ids.length; ++i) {
+      var modelProp = undefined;
+      // find model property corrsponding to id
+      for (j = 0; j < this.modelProps.length; ++j) {
+        if (this.modelProps[j].id === ids[i]) {
+          modelProp = this.modelProps[j];
+          break;
+        }
+      }
+      if (modelProp) {
+        var property = props[ids[i]];
+        if (typeof property === 'undefined') {
+          property = modelProp.modelName; // same propert name in source
+        }
+        var read = from[property];
+        if (read && args.convert) {
+          read = args.convert(ids[i], read);
+        }
+        obj[modelProp.modelName] = read;
+      }
+    }
+    return obj;
+    //var i, j,
+    //  ids,
+    //  props;
+    //if (!obj) {
+    //  obj = this.getObject();
+    //}
+    //if (typeof obj === 'function') {
+    //  convert = obj;
+    //  fromProp = undefined;
+    //  modelId = undefined;
+    //  obj = this.getObject();
+    //}
+    //if (typeof modelId === 'function') {
+    //  convert = modelId;
+    //  fromProp = undefined;
+    //  modelId = undefined;
+    //}
+    //if (typeof fromProp === 'function') {
+    //  convert = fromProp;
+    //  fromProp = undefined;
+    //}
+    //if (!modelId) {
+    //  // no schema ids specified so read all
+    //  ids = [];
+    //  this.modelProps.forEach(function (field) {
+    //    ids.push(field.id);
+    //  });
+    //} else {
+    //  // make sure ids is an array
+    //  if (Array.isArray(modelId)) {
+    //    ids = modelId;
+    //  } else {
+    //    ids = [modelId];
+    //  }
+    //}
+    //// make sure props is an array
+    //if (Array.isArray(fromProp)) {
+    //  props = fromProp;
+    //} else {
+    //  props = [fromProp];
+    //}
+    //// read properties
+    //for (i = 0; i < ids.length; ++i) {
+    //  var modelProp = undefined;
+    //  // find model property corrsponding to id
+    //  for (j = 0; j < this.modelProps.length; ++j) {
+    //    if (this.modelProps[j].id === ids[i]) {
+    //      modelProp = this.modelProps[j];
+    //      break;
+    //    }
+    //  }
+    //  if (modelProp) {
+    //    var property = (i < props.length ? props[i] : props[props.length - 1])
+    //    if (typeof property === 'undefined') {
+    //      property = modelProp.modelName; // same propert name in source
+    //    }
+    //    var read = from[property];
+    //    if(read && convert) {
+    //      read = convert(ids[i], read);
+    //    }
+    //    obj[modelProp.modelName] = read;
+    //  }
+    //}
+    //return obj;
+  }
 }
 
   

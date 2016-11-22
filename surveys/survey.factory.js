@@ -3,62 +3,57 @@
 
 angular.module('ct.clientCommon')
 
-  .constant('QUESTIONTYPES', (function() {
-    var questionTypeIds = {
-				QUESTION_YES_NO: 0,          // simple yes/no question
-				QUESTION_YES_NO_MAYBE: 1,    // simple yes/no/maybe question
-				QUESTION_CHOICE_MULTISEL: 2, // multiple choice/multiple answer
-				QUESTION_CHOICE_SINGLESEL: 3,// multiple choice/single answer
-				QUESTION_RANKING: 4,         // rank answer
-				QUESTION_QUERY: 5            // surveyee answer 
-			};
-    
-    var getOptionCountArray = function (min, max) {
-      var array = [];
-      for (var i = min; i <= max; ++i) {
-        array.push(i);
-      }
-      return array;
-    };
-    
-    var objs = [
-      { type: questionTypeIds.QUESTION_YES_NO,
-        name: 'Yes/No',
-        showOptions: false
-      },
-      { type: questionTypeIds.QUESTION_YES_NO_MAYBE,
-        name: 'Yes/No/Maybe',
-        showOptions: false
-      },
-      { type: questionTypeIds.QUESTION_CHOICE_MULTISEL,
-        name: 'MultiSelect',
-        showOptions: true,
-        range: getOptionCountArray(2, 10)
-      },
-      { type: questionTypeIds.QUESTION_CHOICE_SINGLESEL,
-        name: 'SingleSelect',
-        showOptions: true,
-        range: getOptionCountArray(2, 10)
-      },
-      { type: questionTypeIds.QUESTION_RANKING,
-        name: 'Ranking',
-        showOptions: true,
-        range: getOptionCountArray(1, 10)
-      },
-      { type: questionTypeIds.QUESTION_QUERY,
-        name: 'Query',
-        showOptions: false
-      }
+  .config(function ($provide, schemaProvider) {
+
+    var details = [
+      { field: 'ID', modelName: '_id', dfltValue: undefined },
+      { field: 'NAME', modelName: 'name', dfltValue: '' },
+      { field: 'DESCRIPTION', modelName: 'description', dfltValue: '' },
+      { field: 'QUESTIONS', modelName: 'questions', dfltValue: [] }
     ],
-    ID_TAG = 'survey.';
-    
-    return {
-      IDs: questionTypeIds,
-      OBJs: objs,
-      
+      ids = {},
+      names = [],
+      modelProps = [];
+
+    for (var i = 0; i < details.length; ++i) {
+      ids[details[i].field] = i;          // id is index
+      names.push(details[i].modelName);
+      modelProps.push({
+        id: i,
+        modelName: details[i].modelName, 
+        dfltValue: details[i].dfltValue
+      });
+    }
+
+    var ID_TAG = 'survey.',
+      schema = schemaProvider.getSchema('Survey', modelProps),
+      SURVEY_NAME_IDX =
+        schema.addField('name', 'Name', names[ids.NAME], ID_TAG),
+      SURVEY_DESCRIPTION_IDX =
+        schema.addField('description', 'Description', names[ids.DESCRIPTION], ID_TAG),
+      SURVEY_QUESTIONS_IDX =
+        schema.addField('questions', 'Questions', names[ids.QUESTIONS], ID_TAG),
+
+      // generate list of sort options
+      sortOptions = schemaProvider.makeSortList(schema, 
+                      [SURVEY_NAME_IDX, SURVEY_DESCRIPTION_IDX],
+                      ID_TAG);
+
+    $provide.constant('SURVEYSCHEMA', {
+      IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
+      NAMES: names, // model names
+      MODELPROPS: modelProps,
+
+      SCHEMA: schema,
+      // row indices
+      SURVEY_NAME_IDX: SURVEY_NAME_IDX,
+      SURVEY_DESCRIPTION_IDX: SURVEY_DESCRIPTION_IDX,
+      SURVEY_QUESTIONS_IDX: SURVEY_QUESTIONS_IDX,
+
+      SORT_OPTIONS: sortOptions,
       ID_TAG: ID_TAG
-    };
-  })())
+    });
+  })
 
   .factory('surveyFactory', surveyFactory);
 
@@ -66,27 +61,24 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-surveyFactory.$inject = ['$resource', 'baseURL', 'QUESTIONTYPES', 'storeFactory', 'miscUtilFactory'];
+surveyFactory.$inject = ['$resource', 'baseURL', 'SURVEYSCHEMA', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'consoleService'];
 
-function surveyFactory ($resource, baseURL, QUESTIONTYPES, storeFactory, miscUtilFactory) {
+function surveyFactory($resource, baseURL, SURVEYSCHEMA, storeFactory, resourceFactory, miscUtilFactory, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-    getSurveys: getSurveys,
-    getQuestions: getQuestions,
-    getQuestionTypes: getQuestionTypes,
-    getQuestionTypeObj: getQuestionTypeObj,
-    getQuestionTypeName: getQuestionTypeName,
-    showQuestionOptions: showQuestionOptions,
-    showRankingNumber: showRankingNumber,
-    readSurveyRsp: readSurveyRsp,
-    newSurvey: newSurvey,
-    duplicateSurvey: duplicateSurvey,
-    delSurvey: delSurvey,
-    setSurvey: setSurvey,
-    getSurvey: getSurvey,
-    initSurvey: initSurvey
-  };
+      getSurveys: getSurveys,
+      readRspObject: readRspObject,
+      readSurveyRsp: readSurveyRsp,
+      storeRspObject: storeRspObject,
+      newObj: newObj,
+      duplicateObj: duplicateObj,
+      delObj: delObj,
+      setObj: setObj,
+      getObj: getObj,
+      initObj: initObj
+    },
+    con = consoleService.getLogger('surveyFactory');
   
   return factory;
 
@@ -107,139 +99,80 @@ function surveyFactory ($resource, baseURL, QUESTIONTYPES, storeFactory, miscUti
     return $resource(baseURL + 'surveys/:id', {id:'@id'}, {'update': {method: 'PUT'}});
   }
 
-  function getQuestions () {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-
-      add custom update method
-    */
-    return $resource(baseURL + 'questions/:id', {id:'@id'}, {'update': {method: 'PUT'}});
-  }
-
-  function getQuestionTypes () {
-    return QUESTIONTYPES.OBJs;
-  }
-
-  function getQuestionTypeObj (type) {
-    var questionTypes = QUESTIONTYPES.OBJs,
-      obj;
-    for (var i = 0; i < questionTypes.length; ++i) {
-      if (questionTypes[i].type == type) {
-        obj = questionTypes[i];
-        break;
-      }
-    }
-    return obj;
-  }
-
-  function getQuestionTypeName (type) {
-    var name = '';
-    var obj = getQuestionTypeObj(type);
-    if (obj !== undefined) {
-      name = obj.name;
-    }
-    return name;
-  }
-
-  function showQuestionOptions (type) {
-    var show = false;
-    var obj = getQuestionTypeObj(type);
-    if (obj !== undefined) {
-      show = obj.showOptions;
-    }
-    return show;
-  }
-
-  function showRankingNumber (type) {
-    var questionTypes = QUESTIONTYPES.IDs;
-    return (type == questionTypes.QUESTION_RANKING);
-  }
-  
-  
   /**
-   * Read a survey response from the server
-   * @param {object}   response Server response
-   * @param {string}   objId    id/array of ids of survey object to save response data to
-   * @param {function} next     Optional next function to call
-   * @returns {object}   Survey object
+   * Read a server response survey object
+   * @param {object} response   Server response
+   * @param {object} args       arguments object
+   *                            @see Schema.readProperty() for details
+   * @returns {object}  Survey object
    */
-  function readSurveyRsp (response, objId, flags, next) {
+  function readRspObject(response, args) {
+    // no conversions required by default
+    var survey = SURVEYSCHEMA.SCHEMA.readProperty(response, args);
 
-    flags = flags || storeFactory.NOFLAG;
-    if (typeof flags === 'function') {
-      next = flags;
-      flags = storeFactory.NOFLAG;
-    }
-    var survey = {
-      // from survey model
-      _id: response._id,
-      name: response.name,
-      description: response.description,
-      questions: response.questions
-    };
-    
-    var array = miscUtilFactory.toArray(objId);
-    // if multiple objId's secondary ids are set to copies
-    survey = setSurvey(array[0], survey, flags);
-    for (var i = 1; i < array.length; ++i) {
-      duplicateSurvey(array[i], array[0], storeFactory.DUPLICATE_OR_EXIST);
-    }
+    con.debug('Read survey rsp object: ' + survey);
 
-    if (next) {
-      next();
-    }
     return survey;
   }
 
-  function storeId (id) {
-    return QUESTIONTYPES.ID_TAG + id;
+  /**
+   * Read a survey response from the server and store it
+   * @param {object}   response   Server response
+   * @param {object}   args       process arguments object with following properties
+   *    {string|Array} objId      id/array of ids of survey object to save response data to
+   *    {number}       flags      storefactory flags
+   *    {function}     next       function to call after processing
+   * @returns {object}   Survey object
+   */
+  function readSurveyRsp(response, args) {
+    var survey = readRspObject(response);
+    return storeRspObject(survey, args);
   }
 
-  function newSurvey (id, flags) {
-    return storeFactory.newObj(storeId(id), Survey, flags);
+  /**
+   * Store a survey object
+   * @param {object}   obj        Object to store
+   * @param {object}   args       process arguments object as per resourceFactory.storeServerRsp()
+   *                              without 'factory' argument
+   *                              @see resourceFactory.storeServerRsp()
+   * @return {object}  survey ResourceList object
+   */
+  function storeRspObject (obj, args) {
+    var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
+      factory: this,
+    });
+    return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
-  function duplicateSurvey (id, srcId, flags) {
+
+  function storeId(id) {
+    return SURVEYSCHEMA.ID_TAG + id;
+  }
+
+  function newObj (id, flags) {
+    return storeFactory.newObj(storeId(id), SURVEYSCHEMA.SCHEMA.getObject(), flags);
+  }
+
+  function duplicateObj (id, srcId, flags) {
     return storeFactory.duplicateObj(storeId(id), storeId(srcId), flags);
   }
 
-  function delSurvey (id, flags) {
+  function delObj (id, flags) {
     return storeFactory.delObj(storeId(id), flags);
   }
   
-  function setSurvey (id, data, flags) {
-    return storeFactory.setObj(storeId(id), data, flags, Survey);
+  function setObj (id, data, flags) {
+    return storeFactory.setObj(storeId(id), data, flags, SURVEYSCHEMA.SCHEMA.getObject());
   }
   
-  function getSurvey (id, flags) {
+  function getObj (id, flags) {
     return storeFactory.getObj(storeId(id), flags);
   }
   
-  function initSurvey(id) {
-    // include only required fields
-    setSurvey(id, {
-      name: '',
-      description: '',
-    });
+  function initObj (id) {
+    setObj(id, SURVEYSCHEMA.SCHEMA.getObject());
   }
 
   
   
 }
-
-function Survey(name, description) {
-  this.name = name;
-  this.description = description;
-}
-
-Survey.prototype.toString = function pagerToString () {
-  return 'Survey{ name: ' + this.name +
-  ', description: ' + this.description + '}';
-
-};
-

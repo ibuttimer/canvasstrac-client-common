@@ -17,6 +17,7 @@ function miscUtilFactory () {
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
     copyProperties: copyProperties,
+    copyAndAddProperties: copyAndAddProperties,
     isEmpty: isEmpty,
     toArray: toArray,
     arrayPolyfill: arrayPolyfill
@@ -29,19 +30,39 @@ function miscUtilFactory () {
 
   /**
    * Copy properties from one object to another
-   * @param {object}   from Object to copy from
-   * @param {object [Description]]
-   * @param {[[Type]]} list [[Description]]
+   * @param {object}  from  Object to copy from
+   * @param {object   to    Object to copy to
+   * @param {Array}   list  list of properties to copy, or all if omitted
+   * @return {object} updated to object
    */
   function copyProperties(from, to, list) {
     if (from) {
       if (!list) {
         list = Object.getOwnPropertyNames(from);
       }
-      angular.forEach(list, function(prop) {
+      angular.forEach(list, function (prop) {
         to[prop] = from[prop];
       });
     }
+    return to;
+  }
+
+  /**
+   * Create a copy of an object and add additional properties from another object
+   * @param {object}  from    Object to copy
+   * @param {object   add     Object to add properties from
+   * @param {Array}   list    list of properties to copy from 'add', or all if omitted
+   * @return {object} new object
+   */
+  function copyAndAddProperties(from, add, list) {
+    var to;
+    if (from) {
+      to = angular.copy(from);
+    } else {
+      to = {};
+    }
+    copyProperties(add, to, list);
+    return to;
   }
 
   /**
@@ -90,7 +111,7 @@ function miscUtilFactory () {
     // from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/find
     if (!Array.prototype.find) {
       Array.prototype.find = function(predicate) {
-//        'use strict';
+        //'use strict';
         if (this === null) {
           throw new TypeError('Array.prototype.find called on null or undefined');
         }
@@ -114,7 +135,7 @@ function miscUtilFactory () {
     // from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/findIndex
     if (!Array.prototype.findIndex) {
       Array.prototype.findIndex = function(predicate) {
-//        'use strict';
+        //'use strict';
         if (this === null) {
           throw new TypeError('Array.prototype.findIndex called on null or undefined');
         }
@@ -133,6 +154,83 @@ function miscUtilFactory () {
           }
         }
         return -1;
+      };
+    }
+    // from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/filter
+    if (!Array.prototype.filter) {
+      Array.prototype.filter = function(fun/*, thisArg*/) {
+        //'use strict';
+        if (this === void 0 || this === null) {
+          throw new TypeError();
+        }
+
+        var t = Object(this);
+        var len = t.length >>> 0;
+        if (typeof fun !== 'function') {
+          throw new TypeError();
+        }
+
+        var res = [];
+        var thisArg = arguments.length >= 2 ? arguments[1] : void 0;
+        for (var i = 0; i < len; i++) {
+          if (i in t) {
+            var val = t[i];
+
+            // NOTE: Technically this should Object.defineProperty at
+            //       the next index, as push can be affected by
+            //       properties on Object.prototype and Array.prototype.
+            //       But that method's new, and collisions should be
+            //       rare, so use the more-compatible alternative.
+            if (fun.call(thisArg, val, i, t)) {
+              res.push(val);
+            }
+          }
+        }
+
+        return res;
+      };
+    }
+    // from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/fill
+    if (!Array.prototype.fill) {
+      Array.prototype.fill = function(value) {
+
+        // Steps 1-2.
+        if (this == null) {
+          throw new TypeError('this is null or not defined');
+        }
+
+        var O = Object(this);
+
+        // Steps 3-5.
+        var len = O.length >>> 0;
+
+        // Steps 6-7.
+        var start = arguments[1];
+        var relativeStart = start >> 0;
+
+        // Step 8.
+        var k = relativeStart < 0 ?
+          Math.max(len + relativeStart, 0) :
+          Math.min(relativeStart, len);
+
+        // Steps 9-10.
+        var end = arguments[2];
+        var relativeEnd = end === undefined ?
+          len : end >> 0;
+
+        // Step 11.
+        var final = relativeEnd < 0 ?
+          Math.max(len + relativeEnd, 0) :
+          Math.min(relativeEnd, len);
+
+        // Step 12.
+        while (k < final) {
+          O[k] = value;
+          k++;
+        }
+
+        // Step 13.
+        return O;
       };
     }
   }

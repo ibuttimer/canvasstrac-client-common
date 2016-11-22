@@ -6,26 +6,26 @@
 
 angular.module('ct.clientCommon')
 
-  .factory('pagerService', pagerService);
+  .factory('pagerFactory', pagerFactory);
 
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-pagerService.$inject = ['storeFactory'];
+pagerFactory.$inject = ['storeFactory'];
 
-function pagerService (storeFactory) {
+function pagerFactory (storeFactory) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
-  var service = {
+  var factory = {
     newPager: newPager,
     delPager: delPager,
     getPager: getPager,
     updatePager: updatePager
   };
-  
-  return service;
+
+  return factory;
 
   /* function implementation
     -------------------------- */
@@ -122,7 +122,7 @@ function Pager(id, items, totalItems, currentPage, itemsPerPage, maxDispPages, t
 }
 
 Pager.prototype.toString = function pagerToString () {
-  return 'Pager{ items: ' + this.items +
+  return 'Pager{ items: ' + this.items.toString() +
   ', totalItems: ' + this.totalItems +
   ', currentPage: ' + this.currentPage +
   ', itemsPerPage: ' + this.itemsPerPage +
@@ -132,8 +132,8 @@ Pager.prototype.toString = function pagerToString () {
   ', endPage: ' + this.endPage +
   ', startIndex: ' + this.startIndex +
   ', endIndex: ' + this.endIndex +
-  ', pages: ' + this.pages +
-  ', pageItems: ' + this.pageItems + '}';
+  ', pages: ' + this.pages.toString() +
+  ', pageItems: ' + this.pageItems.toString() + '}';
 };
 
 Pager.prototype.setPage = function (newPage) {
@@ -171,9 +171,17 @@ Pager.prototype.setPage = function (newPage) {
   return this;
 };
 
+Pager.prototype.setMaxDispPages = function (maxDispPages) {
+  if (maxDispPages >= 1) {
+    this.maxDispPages = maxDispPages;
+    this.setPage(1);
+  }
+  return this;
+};
+
 Pager.prototype.setPerPage = function (perPage) {
   if (perPage >= 1) {
-    this.totalPages = Math.ceil(this.totalItems/perPage);
+    this.totalPages = Math.ceil(this.totalItems / perPage);
     this.itemsPerPage = perPage;
     this.setPage(1);
   }

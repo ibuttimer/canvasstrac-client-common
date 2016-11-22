@@ -5,18 +5,37 @@ angular.module('ct.clientCommon')
 
   .config(function ($provide, schemaProvider, SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA) {
 
+    var i, uidx = 0,
+      ids = {},
+      names = [],
+      modelProps = [];
+
+    /* TODO user schema needs more work!!
+        - id fields in addr & person
+     */
+
+    // user schem is a combination of the person & address
+    [PEOPLESCHEMA, ADDRSCHEMA].forEach(function (subSchema) {
+      for (i = 0; i < subSchema.MODELPROPS.length; ++i, ++uidx) {
+        ids[subSchema.IDs[i]] = uidx;          // id is index
+        names.push(subSchema.NAMES[i]);
+        modelProps.push({
+          id: uidx,
+          modelName: subSchema.MODELPROPS[i].modelName,
+          dfltValue: subSchema.MODELPROPS[i].dfltValue
+        });
+      }
+    });
+
     var ID_TAG = 'user.',
-      schema = schemaProvider.getSchema(),
+      schema = schemaProvider.getSchema('User', modelProps),
       sortOptions;
   
-    // user schem is a combination of the person & adress
-    PEOPLESCHEMA.SCHEMA.forEachField(
-      function (index, dialog, display, model, id) {
-        schema.addField(dialog, display, model, id);
-    });
-    ADDRSCHEMA.SCHEMA.forEachField(
-      function (index, dialog, display, model, id) {
-        schema.addField(dialog, display, model, id);
+    [PEOPLESCHEMA, ADDRSCHEMA].forEach(function (subSchema) {
+      subSchema.SCHEMA.forEachField(
+        function (index, dialog, display, model, id) {
+          schema.addField(dialog, display, model, id);
+        });
     });
 
     // generate list of sort options
@@ -34,6 +53,10 @@ angular.module('ct.clientCommon')
 
   
     $provide.constant('USERSCHEMA', {
+      IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
+      NAMES: names, // model names
+      MODELPROPS: modelProps,
+
       SCHEMA: schema,
 
       SORT_OPTIONS: sortOptions,
@@ -41,7 +64,7 @@ angular.module('ct.clientCommon')
     });
   })
 
-  .filter('filterUser', ['SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'utilFactory', 'miscUtilFactory', 'filterAddrFilter', function (SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA, utilFactory, miscUtilFactory) {
+  .filter('filterUser', ['SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'utilFactory', 'miscUtilFactory', function (SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA, utilFactory, miscUtilFactory) {
     
     function filterUserFilter (input, schema, filterBy) {
       
@@ -91,9 +114,11 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-userFactory.$inject = ['$resource', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'SCHEMA_CONST', 'USERSCHEMA', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'peopleFactory', 'addressFactory'];
+userFactory.$inject = ['$resource', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'miscUtilFactory',
+  'SCHEMA_CONST', 'USERSCHEMA', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'peopleFactory', 'addressFactory'];
 
-function userFactory ($resource, $filter, baseURL, storeFactory, resourceFactory, SCHEMA_CONST, USERSCHEMA, PEOPLESCHEMA, ADDRSCHEMA, peopleFactory, addressFactory) {
+function userFactory($resource, $filter, baseURL, storeFactory, resourceFactory, miscUtilFactory,
+  SCHEMA_CONST, USERSCHEMA, PEOPLESCHEMA, ADDRSCHEMA, peopleFactory, addressFactory) {
 
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
@@ -102,6 +127,7 @@ function userFactory ($resource, $filter, baseURL, storeFactory, resourceFactory
     getUsers: getUsers,
     getCount: getCount,
     newList: newList,
+    duplicateList: duplicateList,
     delList: delList,
     setList: setList,
     getList: getList,
@@ -115,7 +141,8 @@ function userFactory ($resource, $filter, baseURL, storeFactory, resourceFactory
     getSortOptions: getSortOptions,
     getSortFunction: getSortFunction,
     isDescendingSortOrder: isDescendingSortOrder,
-    getFilteredResource: getFilteredResource
+    getFilteredResource: getFilteredResource,
+    readUserRsp: readUserRsp
 
   };
   
@@ -171,57 +198,159 @@ function userFactory ($resource, $filter, baseURL, storeFactory, resourceFactory
     );
   }
 
+  /**
+   * Read a user response from the server
+   * @param {object}   response   Server response
+   * @param {object}   args       process arguments object as per resourceFactory.storeServerRsp()
+   *                              without 'factory' argument
+   *                              @see resourceFactory.storeServerRsp()
+   * @return {object}  user ResourceList object
+   */
+  function readUserRsp(response, args) {
+    var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
+      factory: this,
+    });
+    return resourceFactory.storeServerRsp(response, storeArgs);
+  }
 
-  function storeId (id) {
+  /**
+   * Create storefactory id
+   * @param {string}   id       id within this factory
+   * @return {string}  storefactory id
+   */
+  function storeId(id) {
     return USERSCHEMA.ID_TAG + id;
   }
 
+  /**
+   * Create a new user ResourceList object
+   * @param   {string} id                          Id of list
+   * @param   {string} title                       Title of list
+   * @param   {Array}  list                        base list to use
+   * @param   {number} [flags=storeFactory.NOFLAG] storeFactory flags
+   * @returns {object} user ResourceList object
+   */
   function newList (id, title, list, flags) {
-    return resourceFactory.newResourceList(storeId(id), id, title, list, flags);
+    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
+    if (resList) {
+      resList.factory = this;
+    }
+    return resList;
   }
   
+  /**
+   * Create a new user ResourceList object by duplicating an existing object
+   * @param {string} id     Factory id of new object
+   * @param {string} srcId  Factory id of object to duplicate
+   * @param {number} flags  storefactory flags
+   * @returns {object} user ResourceList object
+   */
+  function duplicateList(id, srcId, flags) {
+    return resourceFactory.duplicateList(storeId(id), storeId(srcId), flags);
+  }
+
+  /**
+   * Delete a user ResourceList object
+   * @param {string} id     Factory id of object
+   * @param {number} flags  storefactory flags
+   * @returns {object} copy of deleted user ResourceList object or true/false
+   */
   function delList (id, flags) {
     return resourceFactory.delResourceList(storeId(id), flags);
   }
   
-  function setList (id, list, flags, title) {
+  /**
+   * Update a user ResourceList object
+   * @param {string} id     Factory id of object
+   * @param {Array}  list   base list to use
+   * @param {number} flags  storefactory flags
+   * @param {string} title  Title of list if new list may be created
+   * @returns {object} user ResourceList object
+   */
+  function setList(id, list, flags, title) {
     return resourceFactory.setResourceList(storeId(id), list, flags, function (flag) {
       return newList(id, title, list, flag);
     });
   }
   
+  /**
+   * Get a user ResourceList object
+   * @param {string} id     Factory id of object
+   * @param {number} flags  storefactory flags
+   * @returns {object} user ResourceList object
+   */
   function getList(id, flags) {
     return resourceFactory.getResourceList(storeId(id), flags);
   }
   
-  function initList (id) {
-    return resourceFactory.initResourceList(storeId(id));
+  /**
+   * Initialise a user ResourceList object to an empty list
+   * @param {string} id     Factory id of object
+   * @param {number} flags  storefactory flags
+   * @returns {object} user ResourceList object
+   */
+  function initList(id, flags) {
+    return resourceFactory.initResourceList(storeId(id), flags);
   }
     
-  function setFilter (id, filter, flags) {
+  /**
+   * Set the filter for a user ResourceList object
+   * @param {string} id     Factory id of object
+   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
+   * @param {number} flags  storefactory flags
+   * @returns {object} user ResourceList object
+   */
+  function setFilter(id, filter, flags) {
     if (!filter) {
       filter = newFilter();
     }
     return resourceFactory.setFilter(storeId(id), filter, flags);
   }
 
-  function setPager (id, pager, flags) {
+  /**
+   * Set the pager for a user ResourceList object
+   * @param {string} id     Factory id of object
+   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
+   * @param {number} flags  storefactory flags
+   * @returns {object} user ResourceList object
+   */
+  function setPager(id, pager, flags) {
     return resourceFactory.setPager(storeId(id), pager, flags);
   }
 
-  function applyFilter (id, filter, flags) {
+  /**
+   * Apply filter to a user ResourceList object
+   * @param {string} id     Factory id of object
+   * @param {object} filter filter to use or preset filter is used if undefined
+   * @param {number} flags  storefactory flags
+   * @returns {object} user ResourceList object
+   */
+  function applyFilter(id, filter, flags) {
     return resourceFactory.applyFilter(storeId(id), filter, flags);
   }
 
-  function getSortOptions () {
+  /**
+   * Get the default sort options for a user ResourceList object
+   * @returns {object} user ResourceList sort options
+   */
+  function getSortOptions() {
     return USERSCHEMA.SORT_OPTIONS;
   }
 
-  function forEachUserSchemaField (callback) {
+  /**
+   * Execute the callback on each of the schema fields
+   */
+  function forEachUserSchemaField(callback) {
     USERSCHEMA.SCHEMA.forEachField(callback);
   }
   
-  function newFilter (base, customFilter) {
+  /**
+   * Get a new filter object
+   * @param {object} base           filter base object
+   * @param {function} customFilter custom filter function
+   * @returns {object} user ResourceList filter object
+   */
+  function newFilter(base, customFilter) {
     if (!customFilter) {
       customFilter = filterFunction;
     }
@@ -230,19 +359,37 @@ function userFactory ($resource, $filter, baseURL, storeFactory, resourceFactory
     return filter;
   }
   
-  function getFilteredList (userList, filter) {
+  /**
+   * Generate a filtered list
+   * @param {object} reslist    user ResourceList object to filter
+   * @param {object} filter     filter to apply
+   * @returns {Array} filtered list
+   */
+  function getFilteredList(reslist, filter) {
     // user specific filter function
-    return $filter('filterUser')(userList.list, userList.filter.schema, filter);
+    return $filter('filterUser')(reslist.list, reslist.filter.schema, filter);
   }
   
-  function filterFunction (userList, filter) {
+  /**
+   * Default user ResourceList custom filter function
+   * @param {object} reslist    user ResourceList object to filter
+   * @param {object} filter     filter to apply
+   */
+  function filterFunction(reslist, filter) {
     // user specific filter function
-    userList.filterList = getFilteredList(userList, filter);
+    reslist.filterList = getFilteredList(reslist, filter);
   }
   
-  function getSortFunction (options, sortBy) {
+  /**
+   * Get the sort function for a user ResourceList
+   * @param   {object} sortOptions  List of possible sort option
+   * @param   {object} sortBy       Key to sort by
+   * @returns {function} sort function
+   */
+  function getSortFunction(options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
     if (typeof sortFxn === 'string') {
+      // decode id to get function from another factory
       var idTag = sortFxn.substring(0, ADDRSCHEMA.ID_TAG.length);
       if (idTag === ADDRSCHEMA.ID_TAG) {
         sortFxn = addressFactory.getSortFunction (options, sortBy);
@@ -256,7 +403,12 @@ function userFactory ($resource, $filter, baseURL, storeFactory, resourceFactory
     return sortFxn;
   }
 
-  function isDescendingSortOrder (sortBy) {
+  /**
+   * Check if sort key is descending order
+   * @param   {object} sortBy   Key to sort by
+   * @returns {boolean} true if is descending order, false otherwise
+   */
+  function isDescendingSortOrder(sortBy) {
     return resourceFactory.isDescendingSortOrder(sortBy);
   }
 

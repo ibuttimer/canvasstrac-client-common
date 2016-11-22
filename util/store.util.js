@@ -14,11 +14,12 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-storeFactory.$inject = [];
+storeFactory.$inject = ['consoleService'];
 
-function storeFactory () {
+function storeFactory(consoleService) {
 
   var store = {},   // object store
+    con = consoleService.getLogger('storeFactory'),
     NOFLAG = 0,
     CREATE = 0x01,      // create new object if doesn't exist
     COPY = 0x02,        // return a copy of object
@@ -45,6 +46,7 @@ function storeFactory () {
     CREATE_ANY: CREATE_ANY,
     doCreate: doCreate,
     doCreateInit: doCreateInit,
+    doCreateAny: doCreateAny,
     doCopy: doCopy,
     doApplyFilter: doApplyFilter,
     maskFlag: maskFlag
@@ -63,6 +65,7 @@ function storeFactory () {
     if (!flags) {
       flags = factory.CREATE;
     }
+    con.debug('storeFactory: "' + id + '" ' + flags);
     if (!store[id] || doCreateInit(flags)) {
       if (typeof constructor === 'function') {
         store[id] = new constructor();
@@ -71,6 +74,7 @@ function storeFactory () {
       } else {
         store[id] = {};
       }
+      con.debug('storeFactory: created "' + id + '"');
     } else {
       if (doCreate(flags)) {
         throw new Error('Object with id "' + id + '" already exists in store.');

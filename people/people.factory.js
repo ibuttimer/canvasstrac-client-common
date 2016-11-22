@@ -5,53 +5,50 @@ angular.module('ct.clientCommon')
 
   .config(function ($provide, schemaProvider) {
 
-//  .constant('PEOPLESCHEMA', (function () {
-    var fields = [
-      'FNAME',
-      'LNAME',
-      'NOTE',
-      'ADDR',
-      'CITY',
-      'CONTACT',
-      'OWNER'
+    var details = [
+      { field: 'ID', modelName: '_id', dfltValue: undefined },
+      { field: 'FNAME', modelName: 'firstname', dfltValue: '' },
+      { field: 'LNAME', modelName: 'lastname', dfltValue: '' },
+      { field: 'NOTE', modelName: 'note', dfltValue: '' },
+      { field: 'ADDR', modelName: 'address', dfltValue: undefined },
+      { field: 'CONTACT', modelName: 'contactDetails', dfltValue: undefined },
+      { field: 'OWNER', modelName: 'owner', dfltValue: undefined }
     ],
-      names = [   // model names
-        'firstname',
-        'lastname',
-        'note',
-        'address',
-        'contactDetails',
-        'owner'
-      ],
       ids = {},
-      objs = [];
+      names = [],
+      modelProps = [];
 
-    for (var i = 0; i < fields.length; ++i) {
-      ids[fields[i]] = i;               // id is index
-      objs.push({id: i, name: names[i]});
+    for (var i = 0; i < details.length; ++i) {
+      ids[details[i].field] = i;          // id is index
+      names.push(details[i].modelName);
+      modelProps.push({
+        id: i,
+        modelName: details[i].modelName,
+        dfltValue: details[i].dfltValue
+      });
     }
-  
+
     var ID_TAG = 'people.',
-      schema = schemaProvider.getSchema(),
-      PEOPLE_FLD_FNAME_IDX =
+      schema = schemaProvider.getSchema('Person', modelProps),
+      PEOPLE_FNAME_IDX =
         schema.addField('fname', 'Firstname', names[ids.FNAME], ID_TAG),
-      PEOPLE_FLD_LNAME_IDX =
+      PEOPLE_LNAME_IDX =
         schema.addField('lname', 'Lastname', names[ids.LNAME], ID_TAG),
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-                    [PEOPLE_FLD_FNAME_IDX, PEOPLE_FLD_LNAME_IDX], 
+                    [PEOPLE_FNAME_IDX, PEOPLE_LNAME_IDX], 
                     ID_TAG);
 
     $provide.constant('PEOPLESCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
       NAMES: names, // model names
-      OBJs: objs,
+      MODELPROPS: modelProps,
 
       SCHEMA: schema,
       // row indices
-      PEOPLE_FLD_FNAME_IDX: PEOPLE_FLD_FNAME_IDX,
-      PEOPLE_FLD_LNAME_IDX: PEOPLE_FLD_LNAME_IDX,
+      PEOPLE_FNAME_IDX: PEOPLE_FNAME_IDX,
+      PEOPLE_LNAME_IDX: PEOPLE_LNAME_IDX,
 
       SORT_OPTIONS: sortOptions,
       ID_TAG: ID_TAG
@@ -107,8 +104,12 @@ function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, SCHEM
     return PEOPLESCHEMA.ID_TAG + id;
   }
 
-  function newList (id, title, list, flags) {
-    return resourceFactory.newResourceList(storeId(id), id, title, list, flags);
+  function newList(id, title, list, flags) {
+    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
+    if (resList) {
+      resList.factory = this;
+    }
+    return resList;
   }
   
   function delList (id, flags) {
@@ -162,10 +163,10 @@ function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, SCHEM
     if (typeof sortFxn === 'string') {
       var index = parseInt(sortFxn.substring(PEOPLESCHEMA.ID_TAG.length));
       switch (index) {
-        case PEOPLESCHEMA.PEOPLE_FLD_FNAME_IDX:
+        case PEOPLESCHEMA.PEOPLE_FNAME_IDX:
           sortFxn = compareFname;
           break;
-        case PEOPLESCHEMA.PEOPLE_FLD_LNAME_IDX:
+        case PEOPLESCHEMA.PEOPLE_LNAME_IDX:
           sortFxn = compareLname;
           break;
         default:
@@ -181,11 +182,11 @@ function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, SCHEM
   }
 
   function compareFname (a, b) {
-    return resourceFactory.compareStringFields(PEOPLESCHEMA.SCHEMA, PEOPLESCHEMA.PEOPLE_FLD_FNAME_IDX, a, b);
+    return resourceFactory.compareStringFields(PEOPLESCHEMA.SCHEMA, PEOPLESCHEMA.PEOPLE_FNAME_IDX, a, b);
   }
 
   function compareLname (a, b) {
-    return resourceFactory.compareStringFields(PEOPLESCHEMA.SCHEMA, PEOPLESCHEMA.PEOPLE_FLD_LNAME_IDX, a, b);
+    return resourceFactory.compareStringFields(PEOPLESCHEMA.SCHEMA, PEOPLESCHEMA.PEOPLE_LNAME_IDX, a, b);
   }
 
 

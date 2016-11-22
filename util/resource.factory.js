@@ -3,21 +3,32 @@
 
 angular.module('ct.clientCommon')
 
+  .constant('RESOURCE_CONST', (function () {
+    return {
+      STORE_LIST: 'list',
+      STORE_OBJ: 'obj'
+    };
+  })())
+
   .factory('resourceFactory', resourceFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-resourceFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'miscUtilFactory', 'SCHEMA_CONST'];
+resourceFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'miscUtilFactory', 
+  'consoleService', 'SCHEMA_CONST', 'RESOURCE_CONST'];
 
-function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, miscUtilFactory, SCHEMA_CONST) {
+function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, miscUtilFactory, 
+  consoleService, SCHEMA_CONST, RESOURCE_CONST) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
     getResources: getResources,
     getCount: getCount,
+    storeServerRsp: storeServerRsp,
     newResourceList: newResourceList,
+    duplicateList: duplicateList,
     delResourceList: delResourceList,
     setResourceList: setResourceList,
     getResourceList: getResourceList,
@@ -29,6 +40,8 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     getSortFunction: getSortFunction,
     isDescendingSortOrder: isDescendingSortOrder,
     compareStringFields: compareStringFields,
+    compareNumberFields: compareNumberFields,
+    compareBooleanFields: compareBooleanFields,
     buildQuery: buildQuery
   };
   
@@ -74,6 +87,54 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   }
   
   /**
+   * Store a response from the server
+   * @param {object}   response   Server response
+   * @param {object}   args       process arguments object with following properties
+   *    {string|Array} objId      id/array of ids of object to save response data to
+   *    {string}       storage    save as list or object flag; STORE_LIST, STORE_OBJ, default depends on response
+   *    {number}       flags      storefactory flags
+   *    {object}       factory    factory to handle saving of objects/lists
+   *    {function}     next       function to call after processing
+   * @return {object}  ResourceList object
+   */
+  function storeServerRsp(response, args) {
+
+    var flags = (args.flags || storeFactory.NOFLAG),
+      idArray = miscUtilFactory.toArray(args.objId),
+      resp,
+      asList;
+
+    if (args.storage === RESOURCE_CONST.STORE_LIST) {
+      asList = true;
+    } else if (args.storage === RESOURCE_CONST.STORE_OBJ) {
+      asList = false;
+    } else {
+      asList = Array.isArray(response);
+    }
+
+    if (asList) {
+      // process a query response
+      resp = args.factory.setList(idArray[0], response, flags);
+      // if multiple objId's secondary ids are set to copies
+      for (var i = 1; i < idArray.length; ++i) {
+        args.factory.duplicateList(idArray[i], idArray[0], storeFactory.DUPLICATE_OR_EXIST);
+      }
+    } else {
+      // process a get response
+      resp = args.factory.setObj(idArray[0], response, flags);
+      // if multiple objId's secondary ids are set to copies
+      for (var i = 1; i < idArray.length; ++i) {
+        args.factory.duplicateObj(idArray[i], idArray[0], storeFactory.DUPLICATE_OR_EXIST);
+      }
+    }
+
+    if (args.next) {
+      args.next(resp);
+    }
+    return resp;
+  }
+
+  /**
    * Create a new ResourceList object
    * @param   {string} storeId                     Id string to use in storeFactory
    * @param   {string} id                          Id of list
@@ -100,6 +161,16 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     return storeFactory.newObj(storeId, resourceList, flags);
   }
   
+  /**
+   * Create a new ResourceList object by duplicating an existing object
+   * @param {string} storeId      Id string to use in storeFactory
+   * @param {string} srcStoreId   storeFactory Id string of object to duplicate
+   * @param {number} flags  storefactory flags
+   */
+  function duplicateList(storeId, srcStoreId, flags) {
+    return storeFactory.duplicateObj(storeId, srcStoreId, flags);
+    }
+
   /**
    * Delete a ResourceList object
    * @param {string}   storeId Id string to use in storeFactory
@@ -155,7 +226,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   /**
    * Set the filter for a ResourceList object
    * @param {string} storeId    Id string to use in storeFactory
-   * @param   {object} [filter={] Filter object to use, ResourceFilter object or  no filter
+   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
    * @param   {number} flags      storefactoryFlags
    * @returns {object} ResourceList object
    */
@@ -179,7 +250,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   /**
    * Set the pager for the ResourceList object
    * @param {string} storeId Id string to use in storeFactory
-   * @param   {object} pager   pagerService object
+   * @param   {object} pager   pagerFactory object
    * @param   {number} flags   storefactoryFlags
    * @returns {object} ResourceList object
    */
@@ -200,7 +271,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * Apply a filter to a ResourceList object, and update the associated pager if applicable
    * @see ResourceList.applyFilter()
    * @param {string} storeId Id string to use in storeFactory
-   * @param   {object} filter filter to use or preset filter used if undefined
+   * @param   {object} filter filter to use or preset filter is used if undefined
    * @param   {number} flags   storefactoryFlags
    * @returns {object} this object to facilitate chaining
    */
@@ -214,15 +285,21 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
   /**
    * Create a new ResourceFilter object
-   * @param   {Array} schema [[Description]]
-   * @param   {[[Type]]} base       [[Description]]
-   * @returns {[[Type]]} [[Description]]
+   * @param   {object} schema Schema object for which filter will be used
+   * @param   {object} base   Base object to filter by
+   * @returns {object} new ResourceFilter object
    */
   function newResourceFilter (schema, base) {
     return $injector.instantiate(ResourceFilter, {schema: schema, base: base});
   }
   
-  function getSortFunction (sortOptions, sortBy) {
+  /**
+   * Get the sort function
+   * @param   {object} sortOptions  List of possible sort option
+   * @param   {object} sortBy       Key to sort by
+   * @returns {function} sort function or id to retrieve sort function
+   */
+  function getSortFunction(sortOptions, sortBy) {
     var sortFxn;
     for (var i = 0; (i < sortOptions.length) && !sortFxn; ++i) {
       var option = sortOptions[i].value;
@@ -241,15 +318,30 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     return sortFxn;
   }
 
-  function isDescendingSortOrder (sortBy) {
+  /**
+   * Check if sort key is descending order
+   * @param   {object} sortBy   Key to sort by
+   * @returns {boolean} true if is descending order, false otherwise
+   */
+  function isDescendingSortOrder(sortBy) {
     return (sortBy.charAt(0) === SCHEMA_CONST.SORT_DESC);
   }
 
-  function compareIndices (a, b) {
+  /**
+   * Compare object's using 'index' property
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareIndices(a, b) {
     return (a.index - b.index);
   }
 
-  function compareStrings (a, b) {
+  /**
+   * Compare strings
+   * @param {string}  a   First string to compare
+   * @param {string}  b   Second string to compare
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareStrings(a, b) {
     if (a < b) {
       return -1;
     }
@@ -259,16 +351,80 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     return 0;
   }
 
-  function compareStringFields (schema, index, a, b) {
+  /**
+   * Compare boolean, i.e. false before true
+   * @param {boolean}  a   First boolean to compare
+   * @param {boolean}  b   Second boolean to compare
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareBoolean(a, b) {
+    if (!a && b) {
+      return -1;
+    }
+    if (a && !b) {
+      return 1;
+    }
+    return 0;
+  }
+
+  /**
+   * Compare objects based on schema fields that have string values
+   * @param {object}  schema  Schema object
+   * @param {number}  index   Index of Schema field to use
+   * @param {object}  a       First object to compare
+   * @param {object}  b       Second object to compare
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareStringFields(schema, index, a, b) {
     var result = 0,
       array = schema.getField(index, SCHEMA_CONST.MODEL_PROP);
-    for (var j = 0; (j < array.length) && (result === 0); ++j) {
+    for (var j = 0; (j < array.length) && (result === 0) ; ++j) {
       result = compareStrings(a[array[j]], b[array[j]]);
     }
     return result;
   }
 
-  function buildQuery (forEachSchemaField, filter) {
+  /**
+   * Compare objects based on schema fields that have numeric values
+   * @param {object}  schema  Schema object
+   * @param {number}  index   Index of Schema field to use
+   * @param {object}  a       First object to compare
+   * @param {object}  b       Second object to compare
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareNumberFields(schema, index, a, b) {
+    var result = 0,
+      array = schema.getField(index, SCHEMA_CONST.MODEL_PROP);
+    for (var j = 0; (j < array.length) && (result === 0) ; ++j) {
+      result = a[array[j]] - b[array[j]];
+    }
+    return result;
+  }
+
+  /**
+   * Compare objects based on schema fields that have boolean values
+   * @param {object}  schema  Schema object
+   * @param {number}  index   Index of Schema field to use
+   * @param {object}  a       First object to compare
+   * @param {object}  b       Second object to compare
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareBooleanFields(schema, index, a, b) {
+    var result = 0,
+      array = schema.getField(index, SCHEMA_CONST.MODEL_PROP);
+    for (var j = 0; (j < array.length) && (result === 0); ++j) {
+      result = compareBoolean(a[array[j]], b[array[j]]);
+    }
+    return result;
+  }
+
+  /**
+   * Generate a query object
+   * @param {function}  forEachSchemaField  Schema field callback function 
+   * @param {object}    filter              object to filter by
+   * @returns {object} query object
+   */
+  function buildQuery(forEachSchemaField, filter) {
     var query = {};
     if (filter) {
       // using the dialog fields to build an object based on the model fields
@@ -298,13 +454,13 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
  * @param {function} $filter         Angular filter service
  * @param {function} storeFactory    storeFactory service
  * @param {object}   miscUtilFactory miscUtilFactory service
- * @param {object}   pagerService    pagerService
+ * @param {object}   pagerFactory    pagerFactory
  * @param {string}   id              id string
  * @param {string}   title           title string
  * @param {Array}    list            base list to use
  * @param {number}   flags           storeFactory flags
  */
-function ResourceList ($filter, storeFactory, miscUtilFactory, pagerService, id, title, list, flags) {
+function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id, title, list, flags) {
   if (!list) {
     list = [];
   }
@@ -318,14 +474,18 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerService, id,
    *                       - other flags ignored
    */
   this.setList = function (list, flags) {
-    if (storeFactory.doCopy(flags)) {
-      list = angular.copy(list);
+    var toSet = list;
+    if (toSet) {
+      toSet = miscUtilFactory.toArray(list);
+      if (storeFactory.doCopy(flags)) {
+        toSet = angular.copy(toSet);
+      }
     }
-    this.list = list;       // unfiltered list
-    this.filterList = list; // filtered list
-    if (list) {
-      this.count = list.length;       // total number of possibilities
-      this.filterCount = list.length; // total after filter
+    this.list = toSet;       // unfiltered list
+    this.filterList = toSet; // filtered list
+    if (toSet) {
+      this.count = toSet.length;       // total number of possibilities
+      this.filterCount = toSet.length; // total after filter
     } else {
       this.count = 0;
       this.filterCount = 0;
@@ -333,6 +493,81 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerService, id,
     if (storeFactory.doApplyFilter(flags)) {
       this.applyFilter();
     }
+    this.exeChanged();
+  };
+
+  /**
+   * Add an entry to the base list
+   * @param {object} entry Entry to add to list
+   * @param {number} flags storeFactory flags; the following are used
+   *                       - COPY: to add a copy of the entry argument to the list
+   *                       - APPLY_FILTER: to immediately filter list
+   *                       - other flags ignored
+   */
+  this.addToList = function (entry, flags) {
+    if (!this.list) {
+      this.setList([entry], flags);
+    } else {
+      if (storeFactory.doCopy(flags)) {
+        entry = angular.copy(entry);
+      }
+
+      this.list.push(entry);
+      ++this.count;
+
+      if (storeFactory.doApplyFilter(flags)) {
+        this.applyFilter();
+      }
+    }
+    this.exeChanged();
+  };
+
+  this.exeChanged = function () {
+    if (this.onChange) {
+      for (var i = 0; i < this.onChange.length; ++i) {
+        this.onChange[i](this);
+      }
+    }
+  };
+
+  this.addOnChange = function (toExe) {
+    this.onChange.push(toExe);
+  };
+
+  /**
+   * Call the callback function for each of the entries in this objects list
+   * @param {function} callback   function to callback
+   */
+  this.forEachInList = function (callback) {
+    this.list.forEach(function (entry) {
+      callback(entry);
+    });
+  };
+
+  /**
+   * Call the callback function for each of the entries in this objects list
+   * @param {function} predicate   function to test entries in list
+   */
+  this.findInList = function (predicate, start) {
+    if (typeof predicate !== 'function') {
+      throw new TypeError('predicate must be a function');
+    }
+    // If argument start was passed let n be ToInteger(start); else let n be 0.
+    var n = +start || 0;
+    if (Math.abs(n) === Infinity) {
+      n = 0;
+    }
+
+    var length = this.list.length >>> 0,
+      value;
+
+    for (var i = n; i < length; i++) {
+      value = this.list[i];
+      if (predicate(value, i, this.list)) {
+        return value;
+      }
+    }
+    return undefined;
   };
 
   /**
@@ -365,7 +600,7 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerService, id,
     this.filterCount = this.filterList.length;
 
     if (this.pager) {
-      pagerService.updatePager(this.pager.id, this.filterList);
+      pagerFactory.updatePager(this.pager.id, this.filterList);
     }
 
     return this;
@@ -374,11 +609,11 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerService, id,
   this.toString = function () {
     return 'ResourceList{ id: ' + this.id +
     ', title: ' + this.title +
-    ', list: ' + this.list +
+    ', list: ' + this.list.toString() +
     ', count: ' + this.count +
-    ', filterList: ' + this.filterList +
+    ', filterList: ' + this.filterList.toString() +
     ', filterCount: ' + this.filterCount +
-    ', filter: ' + this.filter +
+    ', filter: ' + this.filter.toString() +
     ', pager: ' + this.pager +
     ', selCount: ' + this.selCount +
     ', sortBy: ' + this.sortBy + '}';
@@ -392,6 +627,7 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerService, id,
   this.pager = undefined;   // pager
   this.selCount = 0;        // selected count
   this.sortBy = undefined;  // sort by option is filled in appropriate controller
+  this.onChange = [];       // functions to be executed when contents are changed
 }
 
 

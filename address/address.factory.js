@@ -3,76 +3,73 @@
 
 angular.module('ct.clientCommon')
 
-.config(function ($provide, schemaProvider) {
+  .config(function ($provide, schemaProvider) {
 
-  var fields = [
-    'ADDR1',
-    'ADDR2',
-    'ADDR3',
-    'TOWN',
-    'CITY',
-    'COUNTY',
-    'COUNTRY',
-    'PCODE',
-    'GPS',
-    'VOTEDIST',
-    'OWNER'
-  ],
-    names = [   // model names
-      'addrLine1',
-      'addrLine2',
-      'addrLine3',
-      'town',
-      'city',
-      'county',
-      'country',
-      'postcode',
-      'gps',
-      'votingDistrict',
-      'owner'
+    var details = [
+      { field: 'ID', modelName: '_id', dfltValue: undefined },
+      { field: 'ADDR1', modelName: 'addrLine1', dfltValue: '' },
+      { field: 'ADDR2', modelName: 'addrLine2', dfltValue: '' },
+      { field: 'ADDR3', modelName: 'addrLine3', dfltValue: '' },
+      { field: 'TOWN', modelName: 'town', dfltValue: '' },
+      { field: 'CITY',  modelName: 'city', dfltValue: '' },
+      { field: 'COUNTY', modelName: 'county', dfltValue: '' },
+      { field: 'COUNTRY', modelName: 'country', dfltValue: '' },
+      { field: 'PCODE', modelName: 'postcode', dfltValue: '' },
+      { field: 'GPS', modelName: 'gps', dfltValue: '' },
+      { field: 'VOTEDIST', modelName: 'votingDistrict', dfltValue: undefined },
+      { field: 'OWNER', modelName: 'owner', dfltValue: undefined }
     ],
-    ids = {},
-    objs = [];
+      ids = {},
+      names = [],
+      modelProps = [];
 
-  for (var i = 0; i < fields.length; ++i) {
-    ids[fields[i]] = i;               // id is index
-    objs.push({id: i, name: names[i]});
-  }
+    for (var i = 0; i < details.length; ++i) {
+      ids[details[i].field] = i;          // id is index
+      names.push(details[i].modelName);
+      modelProps.push({
+        id: i,
+        modelName: details[i].modelName, 
+        dfltValue: details[i].dfltValue
+      });
+    }
 
-  var ID_TAG = 'addrs.',
-    schema = schemaProvider.getSchema(),
-    ADDR_FLD_ADDR_IDX = 
-      schema.addField('addr', 'Address', [names[ids.ADDR1], names[ids.ADDR2], names[ids.ADDR3]], ID_TAG),
-    ADDR_FLD_TOWN_IDX = 
-      schema.addField('town', 'Town', names[ids.TOWN], ID_TAG),
-    ADDR_FLD_CITY_IDX = 
-      schema.addField('city', 'City', names[ids.CITY], ID_TAG),
-    ADDR_FLD_COUNTY_IDX = 
-      schema.addField('county', 'County', names[ids.COUNTY], ID_TAG),
-    ADDR_FLD_POSTCODE_IDX = 
-      schema.addField('postcode', 'Postcode', names[ids.PCODE], ID_TAG),
-      
-    // generate list of sort options
-    sortOptions = schemaProvider.makeSortList(schema, 
-                    [ADDR_FLD_ADDR_IDX, ADDR_FLD_TOWN_IDX, ADDR_FLD_CITY_IDX, ADDR_FLD_COUNTY_IDX, ADDR_FLD_POSTCODE_IDX], 
-                    ID_TAG);
+    var ID_TAG = 'addrs.',
+      schema = schemaProvider.getSchema('Address', modelProps),
+      ADDRESS_ADDR_IDX = 
+        schema.addField('addr', 'Address', [names[ids.ADDR1], names[ids.ADDR2], names[ids.ADDR3]], ID_TAG),
+      ADDRESS_TOWN_IDX = 
+        schema.addField('town', 'Town', names[ids.TOWN], ID_TAG),
+      ADDRESS_CITY_IDX = 
+        schema.addField('city', 'City', names[ids.CITY], ID_TAG),
+      ADDRESS_COUNTY_IDX = 
+        schema.addField('county', 'County', names[ids.COUNTY], ID_TAG),
+      ADDRESS_POSTCODE_IDX =
+        schema.addField('postcode', 'Postcode', names[ids.PCODE], ID_TAG),
+      ADDRESS_GPS_IDX =
+        schema.addField('gps', 'GPS', names[ids.GPS], ID_TAG),
 
-    $provide.constant('ADDRSCHEMA', {
-      IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      NAMES: names, // model names
-      OBJs: objs,
+      // generate list of sort options
+      sortOptions = schemaProvider.makeSortList(schema, 
+                      [ADDRESS_ADDR_IDX, ADDRESS_TOWN_IDX, ADDRESS_CITY_IDX, ADDRESS_COUNTY_IDX, ADDRESS_POSTCODE_IDX], 
+                      ID_TAG);
 
-      SCHEMA: schema,
-      // row indices
-      ADDR_FLD_ADDR_IDX: ADDR_FLD_ADDR_IDX,
-      ADDR_FLD_TOWN_IDX: ADDR_FLD_TOWN_IDX,
-      ADDR_FLD_CITY_IDX: ADDR_FLD_CITY_IDX,
-      ADDR_FLD_COUNTY_IDX: ADDR_FLD_COUNTY_IDX,
-      ADDR_FLD_POSTCODE_IDX: ADDR_FLD_POSTCODE_IDX,
+      $provide.constant('ADDRSCHEMA', {
+        IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
+        NAMES: names, // model names
+        MODELPROPS: modelProps,
 
-      SORT_OPTIONS: sortOptions,
-      ID_TAG: ID_TAG
-    });
+        SCHEMA: schema,
+        // row indices
+        ADDRESS_ADDR_IDX: ADDRESS_ADDR_IDX,
+        ADDRESS_TOWN_IDX: ADDRESS_TOWN_IDX,
+        ADDRESS_CITY_IDX: ADDRESS_CITY_IDX,
+        ADDRESS_COUNTY_IDX: ADDRESS_COUNTY_IDX,
+        ADDRESS_POSTCODE_IDX: ADDRESS_POSTCODE_IDX,
+        ADDRESS_GPS_IDX: ADDRESS_GPS_IDX,
+
+        SORT_OPTIONS: sortOptions,
+        ID_TAG: ID_TAG
+      });
   })
 
 
@@ -141,8 +138,8 @@ function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, r
     getSortOptions: getSortOptions,
     getSortFunction: getSortFunction,
     isDescendingSortOrder: isDescendingSortOrder,
-    getFilteredResource: getFilteredResource
-
+    getFilteredResource: getFilteredResource,
+    stringifyAddress: stringifyAddress
     
   };
   
@@ -203,7 +200,11 @@ function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, r
   }
 
   function newList (id, title, list, flags) {
-    return resourceFactory.newResourceList(storeId(id), id, title, list, flags);
+    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
+    if (resList) {
+      resList.factory = this;
+    }
+    return resList;
   }
   
   function delList (id, flags) {
@@ -273,19 +274,19 @@ function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, r
     if (typeof sortFxn === 'string') {
       var index = parseInt(sortFxn.substring(ADDRSCHEMA.ID_TAG.length));
       switch (index) {
-        case ADDRSCHEMA.ADDR_FLD_ADDR_IDX:
+        case ADDRSCHEMA.ADDRESS_ADDR_IDX:
           sortFxn = compareAddress;
           break;
-        case ADDRSCHEMA.ADDR_FLD_TOWN_IDX:
+        case ADDRSCHEMA.ADDRESS_TOWN_IDX:
           sortFxn = compareTown;
           break;
-        case ADDRSCHEMA.ADDR_FLD_CITY_IDX:
+        case ADDRSCHEMA.ADDRESS_CITY_IDX:
           sortFxn = compareCity;
           break;
-        case ADDRSCHEMA.ADDR_FLD_COUNTY_IDX:
+        case ADDRSCHEMA.ADDRESS_COUNTY_IDX:
           sortFxn = compareCounty;
           break;
-        case ADDRSCHEMA.ADDR_FLD_POSTCODE_IDX:
+        case ADDRSCHEMA.ADDRESS_POSTCODE_IDX:
           sortFxn = comparePostcode;
           break;
         default:
@@ -301,23 +302,42 @@ function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, r
   }
 
   function compareAddress (a, b) {
-    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDR_FLD_ADDR_IDX, a, b);
+    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_ADDR_IDX, a, b);
   }
 
   function compareTown (a, b) {
-    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDR_FLD_TOWN_IDX, a, b);
+    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_TOWN_IDX, a, b);
   }
 
   function compareCity (a, b) {
-    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDR_FLD_CITY_IDX, a, b);
+    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_CITY_IDX, a, b);
   }
 
   function compareCounty (a, b) {
-    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDR_FLD_COUNTY_IDX, a, b);
+    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_COUNTY_IDX, a, b);
   }
 
   function comparePostcode (a, b) {
-    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDR_FLD_POSTCODE_IDX, a, b);
+    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_POSTCODE_IDX, a, b);
+  }
+
+  function stringifyAddress(addr, join) {
+    if (!join) {
+      join = ', ';
+    }
+    var str = '';
+    forEachAddrSchemaField(function (idx, dialog, display, model, id) {
+      model.forEach(function (property) {
+        if (addr[property]) {
+          var value = addr[property].trim();
+          if (str) {
+            str += join;
+          }
+          str += value;
+        }
+      });
+    });
+    return str;
   }
 
 
