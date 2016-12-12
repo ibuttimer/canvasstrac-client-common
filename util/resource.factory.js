@@ -1,4 +1,5 @@
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -102,7 +103,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     var flags = (args.flags || storeFactory.NOFLAG),
       idArray = miscUtilFactory.toArray(args.objId),
       resp,
-      asList;
+      asList, i;
 
     if (args.storage === RESOURCE_CONST.STORE_LIST) {
       asList = true;
@@ -116,14 +117,14 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
       // process a query response
       resp = args.factory.setList(idArray[0], response, flags);
       // if multiple objId's secondary ids are set to copies
-      for (var i = 1; i < idArray.length; ++i) {
+      for (i = 1; i < idArray.length; ++i) {
         args.factory.duplicateList(idArray[i], idArray[0], storeFactory.DUPLICATE_OR_EXIST);
       }
     } else {
       // process a get response
       resp = args.factory.setObj(idArray[0], response, flags);
       // if multiple objId's secondary ids are set to copies
-      for (var i = 1; i < idArray.length; ++i) {
+      for (i = 1; i < idArray.length; ++i) {
         args.factory.duplicateObj(idArray[i], idArray[0], storeFactory.DUPLICATE_OR_EXIST);
       }
     }
@@ -136,29 +137,62 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
   /**
    * Create a new ResourceList object
-   * @param   {string} storeId                     Id string to use in storeFactory
-   * @param   {string} id                          Id of list
-   * @param   {string} title                       Title of list
-   * @param   {Array}  list                        base list to use
-   * @param   {number} [flags=storeFactory.NOFLAG] storeFactory flags
+   * @param {string} storeId Id string to use in storeFactory
+   * @param {object} args    Argument object with the following properties:
+   *   {string} id                          Id of list
+   *   {string} title                       Title of list
+   *   {Array}  list                        base list to use
+   *   {number} [flags=storeFactory.NOFLAG] storeFactory flags
+   *   {string} factory                     name of factory
    * @returns {object} ResourceList object
    */
-  function newResourceList (storeId, id, title, list, flags) {
+  function newResourceList (storeId, args) {
     // jic no native implementation is available
     miscUtilFactory.arrayPolyfill();
     
-    if (Array.isArray(title)) {
-      flags = list;
-      list = title;
-      title = undefined;
+    var listArgs,
+      resourceList,
+      newList;
+
+    if (args) {
+      listArgs = angular.copy(args);
+    } else {
+      listArgs = {};
     }
-    if (typeof list === 'number') {
-      flags = list;
-      list = undefined;
+    if (!listArgs.id) {
+      listArgs.id = '';
     }
-    flags = flags || storeFactory.NOFLAG;
-    var resourceList = $injector.instantiate(ResourceList, {id: id, title: title, list: list, flags: flags});
-    return storeFactory.newObj(storeId, resourceList, flags);
+    if (!listArgs.title) {
+      listArgs.title = '';
+    }
+    if (!listArgs.list) {
+      listArgs.list = [];
+    }
+    if (!listArgs.flags) {
+      listArgs.flags = storeFactory.NOFLAG;
+    }
+
+    resourceList = $injector.instantiate(ResourceList, listArgs);
+    newList = storeFactory.newObj(storeId, resourceList, listArgs.flags);
+
+    if (listArgs.factory) {
+      newList.factory = $injector.get(listArgs.factory);
+    }
+    
+    return newList;
+    
+//    if (Array.isArray(title)) {
+//      flags = list;
+//      list = title;
+//      title = undefined;
+//    }
+//    if (typeof list === 'number') {
+//      flags = list;
+//      list = undefined;
+//    }
+//    flags = flags || storeFactory.NOFLAG;
+//    var resourceList = $injector.instantiate(ResourceList, {id: id, title: title, list: list, flags: flags});
+//    return storeFactory.newObj(storeId, resourceList, flags);
   }
   
   /**
@@ -545,8 +579,9 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id,
   };
 
   /**
-   * Call the callback function for each of the entries in this objects list
-   * @param {function} predicate   function to test entries in list
+   * Find an entry in this objects list using the callback function to test each of the entries 
+   * @param {function} predicate function to test entries in list
+   * @param {number}   start     offset to start from
    */
   this.findInList = function (predicate, start) {
     if (typeof predicate !== 'function') {
@@ -568,6 +603,46 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id,
       }
     }
     return undefined;
+  };
+
+  /**
+   * Find the index of an entry in this objects list using the callback function to test each of the entries 
+   * @param {function} predicate function to test entries in list
+   * @param {number}   start     offset to start from
+   */
+  this.findIndexInList = function (predicate, start) {
+    if (typeof predicate !== 'function') {
+      throw new TypeError('predicate must be a function');
+    }
+    // If argument start was passed let n be ToInteger(start); else let n be 0.
+    var n = +start || 0;
+    if (Math.abs(n) === Infinity) {
+      n = 0;
+    }
+
+    var length = this.list.length >>> 0,
+      value;
+
+    for (var i = n; i < length; i++) {
+      value = this.list[i];
+      if (predicate(value, i, this.list)) {
+        return i;
+      }
+    }
+    return undefined;
+  };
+
+  /**
+   * Return an entry in this objects list
+   * @param {number}   index     index of entry to return
+   */
+  this.getFromList = function (index) {
+    var length = this.list.length >>> 0;
+    
+    if ((index < 0) || (index >= length)) {
+      throw new RangeError('index out of range');
+    }
+    return this.list[index];
   };
 
   /**

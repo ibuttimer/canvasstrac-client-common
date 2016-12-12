@@ -1,4 +1,5 @@
-﻿/*jslint node: true */
+/*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')

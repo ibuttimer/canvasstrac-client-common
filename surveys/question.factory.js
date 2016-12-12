@@ -1,4 +1,5 @@
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -116,9 +117,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-questionFactory.$inject = ['$resource', 'baseURL', 'QUESTIONSCHEMA', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'consoleService'];
+questionFactory.$inject = ['$resource', '$injector', 'baseURL', 'QUESTIONSCHEMA', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'consoleService'];
 
-function questionFactory($resource, baseURL, QUESTIONSCHEMA, storeFactory, resourceFactory, miscUtilFactory, consoleService) {
+function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFactory, resourceFactory, miscUtilFactory, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -127,12 +128,13 @@ function questionFactory($resource, baseURL, QUESTIONSCHEMA, storeFactory, resou
       getQuestionTypeObj: getQuestionTypeObj,
       getQuestionTypeName: getQuestionTypeName,
       showQuestionOptions: showQuestionOptions,
+      hasPresetQuestionOptions: hasPresetQuestionOptions,
       showQuestionSingleSelOptions: showQuestionSingleSelOptions,
       showQuestionMultiSelOptions: showQuestionMultiSelOptions,
       showRankingNumber: showRankingNumber,
       showTextInput: showTextInput,
       readRspObject: readRspObject,
-      readSurveyRsp: readSurveyRsp,
+      readQuestionRsp: readQuestionRsp,
       storeRspObject: storeRspObject,
       newObj: newObj,
       duplicateObj: duplicateObj,
@@ -147,20 +149,6 @@ function questionFactory($resource, baseURL, QUESTIONSCHEMA, storeFactory, resou
 
   /* function implementation
     -------------------------- */
-
-  function getSurveys () {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-
-      add custom update method
-    */
-    return $resource(baseURL + 'surveys/:id', {id:'@id'}, {'update': {method: 'PUT'}});
-  }
 
   function getQuestions () {
     /* https://docs.angularjs.org/api/ngResource/service/$resource
@@ -230,6 +218,21 @@ function questionFactory($resource, baseURL, QUESTIONSCHEMA, storeFactory, resou
   }
 
   /**
+   * Check if a question type has predefined options
+   * @param {number} type  Type of question type to check
+   * @return {boolean}  true if has predefined options
+   */
+  function hasPresetQuestionOptions (type) {
+    switch (type) {
+      case QUESTIONSCHEMA.TYPEIDs.QUESTION_YES_NO:
+      case QUESTIONSCHEMA.TYPEIDs.QUESTION_YES_NO_MAYBE:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /**
     * Check if single select options should be displayed for a question type
     * @param {number} type  Type of question type to check
     * @return {boolean}  true if options should be displayed
@@ -291,7 +294,7 @@ function questionFactory($resource, baseURL, QUESTIONSCHEMA, storeFactory, resou
    *    {function}     next       function to call after processing
    * @returns {object}   Survey object
    */
-  function readSurveyRsp(response, args) {
+  function readQuestionRsp(response, args) {
     var question = readRspObject(response);
     return storeRspObject(question, args);
   }
@@ -306,7 +309,7 @@ function questionFactory($resource, baseURL, QUESTIONSCHEMA, storeFactory, resou
    */
   function storeRspObject (obj, args) {
     var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
-      factory: this,
+      factory: $injector.get('questionFactory')
     });
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }

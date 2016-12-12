@@ -1,4 +1,5 @@
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -114,10 +115,10 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-userFactory.$inject = ['$resource', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'miscUtilFactory',
+userFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'miscUtilFactory',
   'SCHEMA_CONST', 'USERSCHEMA', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'peopleFactory', 'addressFactory'];
 
-function userFactory($resource, $filter, baseURL, storeFactory, resourceFactory, miscUtilFactory,
+function userFactory($resource, $injector, $filter, storeFactory, resourceFactory, miscUtilFactory,
   SCHEMA_CONST, USERSCHEMA, PEOPLESCHEMA, ADDRSCHEMA, peopleFactory, addressFactory) {
 
 
@@ -208,7 +209,7 @@ function userFactory($resource, $filter, baseURL, storeFactory, resourceFactory,
    */
   function readUserRsp(response, args) {
     var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
-      factory: this,
+      factory: $injector.get('userFactory')
     });
     return resourceFactory.storeServerRsp(response, storeArgs);
   }
@@ -224,18 +225,41 @@ function userFactory($resource, $filter, baseURL, storeFactory, resourceFactory,
 
   /**
    * Create a new user ResourceList object
-   * @param   {string} id                          Id of list
-   * @param   {string} title                       Title of list
-   * @param   {Array}  list                        base list to use
-   * @param   {number} [flags=storeFactory.NOFLAG] storeFactory flags
+   * @param   {string} id   Id of list
+   * @param {object} args Argument object with the following properties:
+   *   {string} id                          Id of list
+   *   {string} title                       Title of list
+   *   {Array}  list                        base list to use
+   *   {number} [flags=storeFactory.NOFLAG] storeFactory flags
    * @returns {object} user ResourceList object
    */
-  function newList (id, title, list, flags) {
-    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
-    if (resList) {
-      resList.factory = this;
+  function newList (id, args) {
+    var listArgs;
+    if (args) {
+      listArgs = angular.copy(args);
+    } else {
+      listArgs = {};
     }
-    return resList;
+    if (!listArgs.id) {
+      listArgs.id = id;
+    }
+    listArgs.factory = 'userFactory';
+
+    return resourceFactory.newResourceList(storeId(id), listArgs);
+
+//    function newList (id, title, list, flags) {
+//    return resourceFactory.newResourceList(storeId(id), {
+//      id: id, 
+//      title: title, 
+//      list: list,
+//      flags: flags,
+//      factory: 'userFactory'
+//    });
+//    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
+//    if (resList) {
+//      resList.factory = this;
+//    }
+//    return resList;
   }
   
   /**

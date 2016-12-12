@@ -1,4 +1,5 @@
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -199,12 +200,34 @@ function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, r
     return ADDRSCHEMA.ID_TAG + id;
   }
 
-  function newList (id, title, list, flags) {
-    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
-    if (resList) {
-      resList.factory = this;
+  /**
+   * Create a new address ResourceList object
+   * @param   {string} id   Id of list
+   * @param {object} args Argument object with the following properties:
+   *   {string} id                          Id of list
+   *   {string} title                       Title of list
+   *   {Array}  list                        base list to use
+   *   {number} [flags=storeFactory.NOFLAG] storeFactory flags
+   * @returns {object} address ResourceList object
+   */
+  function newList (id, args) {
+    var listArgs;
+    if (args) {
+      listArgs = angular.copy(args);
+    } else {
+      listArgs = {};
     }
-    return resList;
+    if (!listArgs.id) {
+      listArgs.id = id;
+    }
+    listArgs.factory = 'addressFactory';
+
+    return resourceFactory.newResourceList(storeId(id), listArgs);
+//    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
+//    if (resList) {
+//      resList.factory = this;
+//    }
+//    return resList;
   }
   
   function delList (id, flags) {

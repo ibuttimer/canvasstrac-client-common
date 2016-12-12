@@ -1,4 +1,5 @@
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -195,7 +196,7 @@ function miscUtilFactory () {
       Array.prototype.fill = function(value) {
 
         // Steps 1-2.
-        if (this == null) {
+        if (this === null) {
           throw new TypeError('this is null or not defined');
         }
 
