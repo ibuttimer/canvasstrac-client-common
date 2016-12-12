@@ -223,11 +223,6 @@ function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, r
     listArgs.factory = 'addressFactory';
 
     return resourceFactory.newResourceList(storeId(id), listArgs);
-//    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
-//    if (resList) {
-//      resList.factory = this;
-//    }
-//    return resList;
   }
   
   function delList (id, flags) {

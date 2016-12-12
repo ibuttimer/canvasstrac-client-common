@@ -371,11 +371,8 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
         if (usrList && addrList) {
 
           // find canvasser
-          var canvasser = usrList.findInList(testCanvasser),
-            cnvsIdx;
+          var canvasser = usrList.findInList(testCanvasser);
           if (canvasser) {
-
-            cnvsIdx = usrList.findIndexInList(testCanvasser);
 
             canvasser.allocId = allocation._id;
 

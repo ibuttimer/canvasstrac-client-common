@@ -205,11 +205,6 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
       flags: flags,
       factory: 'electionFactory'
     });
-//    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
-//    if (resList) {
-//      resList.factory = this;
-//    }
-//    return resList;
   }
 
   /**

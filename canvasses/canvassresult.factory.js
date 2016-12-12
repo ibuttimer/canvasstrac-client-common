@@ -336,20 +336,6 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
     listArgs.factory = 'canvassResultFactory';
 
     return resourceFactory.newResourceList(storeId(id), listArgs);
-
-//  function newList (id, title, list, flags) {
-//    return resourceFactory.newResourceList(storeId(id), {
-//      id: id, 
-//      title: title, 
-//      list: list,
-//      flags: flags,
-//      factory: 'canvassResultFactory'
-//    });
-//    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
-//    if (resList) {
-//      resList.factory = this;
-//    }
-//    return resList;
   }
   
   /**

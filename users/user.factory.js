@@ -246,20 +246,6 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
     listArgs.factory = 'userFactory';
 
     return resourceFactory.newResourceList(storeId(id), listArgs);
-
-//    function newList (id, title, list, flags) {
-//    return resourceFactory.newResourceList(storeId(id), {
-//      id: id, 
-//      title: title, 
-//      list: list,
-//      flags: flags,
-//      factory: 'userFactory'
-//    });
-//    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
-//    if (resList) {
-//      resList.factory = this;
-//    }
-//    return resList;
   }
   
   /**

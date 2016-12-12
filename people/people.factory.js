@@ -114,14 +114,6 @@ function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, SCHEM
       flags: flags,
       factory: 'peopleFactory'
     });
-
-    
-    
-//    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
-//    if (resList) {
-//      resList.factory = this;
-//    }
-//    return resList;
   }
   
   function delList (id, flags) {
