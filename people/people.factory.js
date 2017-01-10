@@ -1,4 +1,5 @@
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -105,11 +106,14 @@ function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, SCHEM
   }
 
   function newList(id, title, list, flags) {
-    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
-    if (resList) {
-      resList.factory = this;
-    }
-    return resList;
+
+    return resourceFactory.newResourceList(storeId(id), {
+      id: id, 
+      title: title, 
+      list: list,
+      flags: flags,
+      factory: 'peopleFactory'
+    });
   }
   
   function delList (id, flags) {

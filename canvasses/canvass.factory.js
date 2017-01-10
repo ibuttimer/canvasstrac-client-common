@@ -1,4 +1,5 @@
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -95,11 +96,13 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
       setObj: setObj,
       getObj: getObj,
       initObj: initObj,
+      setLabeller: setLabeller,
       linkCanvasserToAddr: linkCanvasserToAddr,
       unlinkAddrFromCanvasser: unlinkAddrFromCanvasser,
       unlinkAddrListFromCanvasser: unlinkAddrListFromCanvasser
     },
-    con = consoleService.getLogger('canvassFactory');
+    con = consoleService.getLogger('canvassFactory'),
+    labeller;
   
   return factory;
 
@@ -174,6 +177,14 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
   }
 
   /**
+   * Set the labeling function
+   * @param {function} labelfunc Function to return label class
+   */
+  function setLabeller (labelfunc) {
+    labeller = labelfunc;
+  }
+  
+  /**
    * Read a canvass response from the server
    * @param {object}   response   Server response
    * @param {object}   args       process arguments object 
@@ -191,7 +202,7 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
    * @param {object}   response   Server response
    * @param {object}   args       process arguments object as per resourceFactory.storeServerRsp()
    *                              without 'factory' argument, i.e.
-   *    {string|Array}  objId       id/array of ids of canvass & survey objects to save response data to
+   *    {string|Array}  objId       id/array of ids of canvass objects to save response data to
    *    {number}        flags       storefactory flags
    *    {function}      next        function to call after processing
    *                              @see resourceFactory.storeServerRsp()
@@ -242,15 +253,8 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
 
     con.debug('Store canvass response: ' + canvass);
 
-    var factory = this,
-      storeArgs;
-    if (!factory) {
-      // call original was inside a forEach so there is no this context
-      factory = $injector.get('canvassFactory');
-    }
-
-    storeArgs = miscUtilFactory.copyProperties(args, {
-        factory: factory
+    var storeArgs = miscUtilFactory.copyProperties(args, {
+        factory: $injector.get('canvassFactory')
       }, ['objId', 'flags', 'storage', 'next']);
 
     return resourceFactory.storeServerRsp(canvass, storeArgs);
@@ -324,7 +328,6 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     var flags = (args.flags || storeFactory.NOFLAG),
       usrList,
       addrList,
-      labelIdx = 0,
       rspArray = miscUtilFactory.toArray(response);
     
     // TODO processing as array but what about multiple allocation for different canvasses?
@@ -374,7 +377,9 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
             canvasser.allocId = allocation._id;
 
             if (args.labeller) {
-              canvasser.labelClass = args.labeller(labelIdx++);
+              canvasser.labelClass = args.labeller();
+            } else if (labeller) {
+              canvasser.labelClass = labeller();
             }
 
             if (!canvasser.addresses) {
@@ -524,6 +529,11 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     }
     addr.badge = badge;
     
+    if (!canvasser.labelClass) {
+      if (labeller) {
+        canvasser.labelClass = labeller();
+      }
+    }
     addr.labelClass = canvasser.labelClass;
   }
   

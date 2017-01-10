@@ -1,4 +1,5 @@
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -61,9 +62,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-surveyFactory.$inject = ['$resource', 'baseURL', 'SURVEYSCHEMA', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'consoleService'];
+surveyFactory.$inject = ['$resource', '$injector', 'baseURL', 'SURVEYSCHEMA', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'consoleService'];
 
-function surveyFactory($resource, baseURL, SURVEYSCHEMA, storeFactory, resourceFactory, miscUtilFactory, consoleService) {
+function surveyFactory($resource, $injector, baseURL, SURVEYSCHEMA, storeFactory, resourceFactory, miscUtilFactory, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -139,7 +140,7 @@ function surveyFactory($resource, baseURL, SURVEYSCHEMA, storeFactory, resourceF
    */
   function storeRspObject (obj, args) {
     var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
-      factory: this,
+      factory: $injector.get('surveyFactory')
     });
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }

@@ -1,4 +1,5 @@
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -70,10 +71,10 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-electionFactory.$inject = ['$resource', 'baseURL', 'storeFactory', 'resourceFactory', 'consoleService',
+electionFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'consoleService',
   'miscUtilFactory', 'ELECTIONSCHEMA'];
 
-function electionFactory($resource, baseURL, storeFactory, resourceFactory, consoleService, 
+function electionFactory($resource, $injector, $filter, storeFactory, resourceFactory, consoleService, 
   miscUtilFactory, ELECTIONSCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
@@ -179,7 +180,7 @@ function electionFactory($resource, baseURL, storeFactory, resourceFactory, cons
    */
   function storeRspObject (obj, args) {
     var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
-      factory: this,
+      factory: $injector.get('electionFactory')
     });
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
@@ -197,11 +198,13 @@ function electionFactory($resource, baseURL, storeFactory, resourceFactory, cons
    * @returns {object} election ResourceList object
    */
   function newList(id, title, list, flags) {
-    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
-    if (resList) {
-      resList.factory = this;
-    }
-    return resList;
+    return resourceFactory.newResourceList(storeId(id), {
+      id: id, 
+      title: title, 
+      list: list,
+      flags: flags,
+      factory: 'electionFactory'
+    });
   }
 
   /**

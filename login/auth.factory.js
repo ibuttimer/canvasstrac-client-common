@@ -1,4 +1,5 @@
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -18,7 +19,7 @@ angular.module('ct.clientCommon')
       TOKEN_KEY: 'token',       // object key for user token
       USERINFO_KEY: 'userinfo' // object key for user info
     };
-  })())
+  }()))
   .factory('authFactory', AuthFactory);
 
 /* Manually Identify Dependencies
@@ -159,7 +160,7 @@ function AuthFactory($resource, $http, storeFactory, localStorage, baseURL, misc
       });
   }
 
-  function loginByFacebook(success, failure) {
+  function loginByFacebook (loginData, success, failure) {
     $resource(baseURL + 'users/facebook')
       .get({},
         function (response) {

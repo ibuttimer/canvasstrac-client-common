@@ -1,4 +1,5 @@
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -232,10 +233,10 @@ function Schema(name, modelProps) {
     this.modelProps.forEach(function (field) {
       obj[field.modelName] = field.dfltValue;
     });
-    obj['schema'] = this;
-    obj['toString'] = function () {
+    obj.schema = this;
+    obj.toString = function () {
       return this.schema.objectToString(this);
-    }
+    };
     return obj;
   };
 
@@ -326,71 +327,7 @@ function Schema(name, modelProps) {
       }
     }
     return obj;
-    //var i, j,
-    //  ids,
-    //  props;
-    //if (!obj) {
-    //  obj = this.getObject();
-    //}
-    //if (typeof obj === 'function') {
-    //  convert = obj;
-    //  fromProp = undefined;
-    //  modelId = undefined;
-    //  obj = this.getObject();
-    //}
-    //if (typeof modelId === 'function') {
-    //  convert = modelId;
-    //  fromProp = undefined;
-    //  modelId = undefined;
-    //}
-    //if (typeof fromProp === 'function') {
-    //  convert = fromProp;
-    //  fromProp = undefined;
-    //}
-    //if (!modelId) {
-    //  // no schema ids specified so read all
-    //  ids = [];
-    //  this.modelProps.forEach(function (field) {
-    //    ids.push(field.id);
-    //  });
-    //} else {
-    //  // make sure ids is an array
-    //  if (Array.isArray(modelId)) {
-    //    ids = modelId;
-    //  } else {
-    //    ids = [modelId];
-    //  }
-    //}
-    //// make sure props is an array
-    //if (Array.isArray(fromProp)) {
-    //  props = fromProp;
-    //} else {
-    //  props = [fromProp];
-    //}
-    //// read properties
-    //for (i = 0; i < ids.length; ++i) {
-    //  var modelProp = undefined;
-    //  // find model property corrsponding to id
-    //  for (j = 0; j < this.modelProps.length; ++j) {
-    //    if (this.modelProps[j].id === ids[i]) {
-    //      modelProp = this.modelProps[j];
-    //      break;
-    //    }
-    //  }
-    //  if (modelProp) {
-    //    var property = (i < props.length ? props[i] : props[props.length - 1])
-    //    if (typeof property === 'undefined') {
-    //      property = modelProp.modelName; // same propert name in source
-    //    }
-    //    var read = from[property];
-    //    if(read && convert) {
-    //      read = convert(ids[i], read);
-    //    }
-    //    obj[modelProp.modelName] = read;
-    //  }
-    //}
-    //return obj;
-  }
+  };
 }
 
   

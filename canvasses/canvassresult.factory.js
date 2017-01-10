@@ -1,4 +1,5 @@
 /*jslint node: true */
+/*global angular */
 'use strict';
 
 angular.module('ct.clientCommon')
@@ -88,9 +89,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassResultFactory.$inject = ['$resource', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'surveyFactory',
+canvassResultFactory.$inject = ['$resource', '$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'surveyFactory',
   'addressFactory', 'electionFactory', 'userFactory', 'CANVASSRES_SCHEMA', 'consoleService'];
-function canvassResultFactory($resource, $injector, baseURL, storeFactory, resourceFactory, miscUtilFactory, surveyFactory,
+function canvassResultFactory($resource, $injector, $filter, baseURL, storeFactory, resourceFactory, miscUtilFactory, surveyFactory,
   addressFactory, electionFactory, userFactory, CANVASSRES_SCHEMA, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
@@ -227,15 +228,8 @@ function canvassResultFactory($resource, $injector, baseURL, storeFactory, resou
 
     con.debug('Store canvass result response: ' + canvassRes);
 
-    var factory = this,
-      storeArgs;
-    if (!factory) {
-      // call original was inside a forEach so there is no this context
-      factory = $injector.get('canvassResultFactory');
-    }
-    
-    storeArgs = miscUtilFactory.copyProperties(args, {
-      factory: factory
+    var storeArgs = miscUtilFactory.copyProperties(args, {
+      factory: $injector.get('canvassResultFactory')
     }, ['objId', 'flags', 'storage', 'next']);
 
     return resourceFactory.storeServerRsp(canvassRes, storeArgs);
@@ -321,18 +315,27 @@ function canvassResultFactory($resource, $injector, baseURL, storeFactory, resou
   
   /**
    * Create a new canvass result ResourceList object
-   * @param   {string} id                          Id of list
-   * @param   {string} title                       Title of list
-   * @param   {Array}  list                        base list to use
-   * @param   {number} [flags=storeFactory.NOFLAG] storeFactory flags
+   * @param   {string} id   Id of list
+   * @param {object} args Argument object with the following properties:
+   *   {string} id                          Id of list
+   *   {string} title                       Title of list
+   *   {Array}  list                        base list to use
+   *   {number} [flags=storeFactory.NOFLAG] storeFactory flags
    * @returns {object} canvass result ResourceList object
    */
-  function newList (id, title, list, flags) {
-    var resList = resourceFactory.newResourceList(storeId(id), id, title, list, flags);
-    if (resList) {
-      resList.factory = this;
+  function newList (id, args) {
+    var listArgs;
+    if (args) {
+      listArgs = angular.copy(args);
+    } else {
+      listArgs = {};
     }
-    return resList;
+    if (!listArgs.id) {
+      listArgs.id = id;
+    }
+    listArgs.factory = 'canvassResultFactory';
+
+    return resourceFactory.newResourceList(storeId(id), listArgs);
   }
   
   /**

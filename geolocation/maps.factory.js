@@ -1,4 +1,7 @@
-﻿/*jslint node: true */
+/*jslint node: true */
+/*global angular */
+/*global google */
+/*global cordova */
 'use strict';
 
 angular.module('ct.clientCommon')
