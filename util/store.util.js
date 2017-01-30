@@ -27,6 +27,7 @@ function storeFactory(consoleService) {
     CREATE_INIT = 0x04, // create new object if doesn't exist, or init it if it does
     APPLY_FILTER = 0x08,// apply filter (after filter or list set)
     DUPLICATE_OR_EXIST = 0x10,// create a duplicate or return existing
+    EMPTY_OBJ = 0x20,   // create an empty object ignoring any constructor
     CREATE_COPY = (CREATE | COPY),
     CREATE_ANY = (CREATE | CREATE_INIT);
 
@@ -37,11 +38,12 @@ function storeFactory(consoleService) {
     delObj: delObj,
     setObj: setObj,
     getObj: getObj,
-    NOFLAG: 0,
+    NOFLAG: NOFLAG,
     CREATE: CREATE,
     COPY: COPY,
     APPLY_FILTER: APPLY_FILTER,
     DUPLICATE_OR_EXIST: DUPLICATE_OR_EXIST,
+    EMPTY_OBJ: EMPTY_OBJ,
     CREATE_INIT: CREATE_INIT,
     CREATE_COPY: CREATE_COPY,
     CREATE_ANY: CREATE_ANY,
@@ -68,7 +70,9 @@ function storeFactory(consoleService) {
     }
     con.debug('storeFactory: "' + id + '" ' + flags);
     if (!store[id] || doCreateInit(flags)) {
-      if (typeof constructor === 'function') {
+      if (doEmptyObj(flags)) {
+        store[id] = {};
+      } else if (typeof constructor === 'function') {
         store[id] = new constructor();
       } else if (typeof constructor === 'object') {
         store[id] = constructor;
@@ -171,6 +175,10 @@ function storeFactory(consoleService) {
   
   function doDuplicateOrExist (flags) {
     return testFlag(flags, DUPLICATE_OR_EXIST);
+  }
+  
+  function doEmptyObj (flags) {
+    return testFlag(flags, EMPTY_OBJ);
   }
 }
 

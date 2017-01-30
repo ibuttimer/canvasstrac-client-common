@@ -4,50 +4,49 @@
 
 angular.module('ct.clientCommon')
 
-  .config(function ($provide, schemaProvider) {
+  .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined },
-      { field: 'ADDR1', modelName: 'addrLine1', dfltValue: '' },
-      { field: 'ADDR2', modelName: 'addrLine2', dfltValue: '' },
-      { field: 'ADDR3', modelName: 'addrLine3', dfltValue: '' },
-      { field: 'TOWN', modelName: 'town', dfltValue: '' },
-      { field: 'CITY',  modelName: 'city', dfltValue: '' },
-      { field: 'COUNTY', modelName: 'county', dfltValue: '' },
-      { field: 'COUNTRY', modelName: 'country', dfltValue: '' },
-      { field: 'PCODE', modelName: 'postcode', dfltValue: '' },
-      { field: 'GPS', modelName: 'gps', dfltValue: '' },
-      { field: 'VOTEDIST', modelName: 'votingDistrict', dfltValue: undefined },
-      { field: 'OWNER', modelName: 'owner', dfltValue: undefined }
+      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'ADDR1', modelName: 'addrLine1', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'ADDR2', modelName: 'addrLine2', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'ADDR3', modelName: 'addrLine3', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'TOWN', modelName: 'town', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'CITY',  modelName: 'city', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'COUNTY', modelName: 'county', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'COUNTRY', modelName: 'country', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'PCODE', modelName: 'postcode', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'GPS', modelName: 'gps', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'VOTEDIST', modelName: 'votingDistrict', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'OWNER', modelName: 'owner', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID }
     ],
       ids = {},
-      names = [],
       modelProps = [];
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      names.push(details[i].modelName);
       modelProps.push({
         id: i,
         modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue
+        dfltValue: details[i].dfltValue,
+        type: details[i].type
       });
     }
 
-    var ID_TAG = 'addrs.',
-      schema = schemaProvider.getSchema('Address', modelProps),
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('addrs'),
+      schema = schemaProvider.getSchema('Address', modelProps, ID_TAG),
       ADDRESS_ADDR_IDX = 
-        schema.addField('addr', 'Address', [names[ids.ADDR1], names[ids.ADDR2], names[ids.ADDR3]], ID_TAG),
+        schema.addFieldFromModelProp('addr', 'Address', [ids.ADDR1, ids.ADDR2, ids.ADDR3]),
       ADDRESS_TOWN_IDX = 
-        schema.addField('town', 'Town', names[ids.TOWN], ID_TAG),
+        schema.addFieldFromModelProp('town', 'Town', ids.TOWN),
       ADDRESS_CITY_IDX = 
-        schema.addField('city', 'City', names[ids.CITY], ID_TAG),
+        schema.addFieldFromModelProp('city', 'City', ids.CITY),
       ADDRESS_COUNTY_IDX = 
-        schema.addField('county', 'County', names[ids.COUNTY], ID_TAG),
+        schema.addFieldFromModelProp('county', 'County', ids.COUNTY),
       ADDRESS_POSTCODE_IDX =
-        schema.addField('postcode', 'Postcode', names[ids.PCODE], ID_TAG),
+        schema.addFieldFromModelProp('postcode', 'Postcode', ids.PCODE),
       ADDRESS_GPS_IDX =
-        schema.addField('gps', 'GPS', names[ids.GPS], ID_TAG),
+        schema.addFieldFromModelProp('gps', 'GPS', ids.GPS),
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
@@ -56,7 +55,6 @@ angular.module('ct.clientCommon')
 
       $provide.constant('ADDRSCHEMA', {
         IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-        NAMES: names, // model names
         MODELPROPS: modelProps,
 
         SCHEMA: schema,
@@ -74,7 +72,7 @@ angular.module('ct.clientCommon')
   })
 
 
-  .filter('filterAddr', ['miscUtilFactory', function (miscUtilFactory) {
+  .filter('filterAddr', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
 
     function filterAddrFilter (input, schema, filterBy) {
       
@@ -82,13 +80,22 @@ angular.module('ct.clientCommon')
       var out = [];
 
       if (!miscUtilFactory.isEmpty(filterBy)) {
+        var testCnt = 0,  // num of fields to test as speced by filter
+          matchCnt;       // num of fields matching filter
+        schema.forEachField(function(idx, fieldProp) {
+          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
+            ++testCnt;
+          }
+        });
         angular.forEach(input, function (addr) {
-          schema.forEachField(function(idx, dialog, display, model, id) {
-            var filterVal = filterBy[dialog]; // filter uses dialog properties
+          matchCnt = 0;
+          schema.forEachField(function(idx, fieldProp) {
+            var filterVal = filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]];  // filter uses dialog properties
             if (filterVal) {
               filterVal = filterVal.toLowerCase();
               // apply OR logic to multiple model fields
-              var match = false;
+              var match = false,
+                model = fieldProp[SCHEMA_CONST.MODEL_PROP];
               for (var j = 0; !match && (j < model.length); ++j) {
                 var addrVal = addr[model[j]];
                 if (addrVal) {
@@ -96,7 +103,10 @@ angular.module('ct.clientCommon')
                 }
               }
               if (match) {
-                out.push(addr);
+                ++matchCnt;
+                if (matchCnt === testCnt) {
+                  out.push(addr);
+                }
               }
             }
           });
@@ -116,33 +126,29 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-addressFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'SCHEMA_CONST', 'ADDRSCHEMA'];
+addressFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'SCHEMA_CONST', 'ADDRSCHEMA'];
 
-function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, resourceFactory, SCHEMA_CONST, ADDRSCHEMA) {
+function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, resourceFactory, compareFactory, SCHEMA_CONST, ADDRSCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-    ID_TAG: ADDRSCHEMA.ID_TAG,
+    NAME: 'addressFactory',
     getAddresses: getAddresses,
     getCount: getCount,
-    newList: newList,
-    delList: delList,
-    setList: setList,
-    getList: getList,
-    initList: initList,
     setFilter: setFilter,
-    setPager: setPager,
-    applyFilter: applyFilter,
     newFilter: newFilter,
     getFilteredList: getFilteredList,
     forEachSchemaField: forEachAddrSchemaField,
     getSortOptions: getSortOptions,
     getSortFunction: getSortFunction,
-    isDescendingSortOrder: isDescendingSortOrder,
     getFilteredResource: getFilteredResource,
     stringifyAddress: stringifyAddress
-    
-  };
+  },
+    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
+      storeId: storeId,
+      schema: ADDRSCHEMA.SCHEMA,
+      addInterface: factory // add standard factory functions to this factory
+    });
   
   return factory;
 
@@ -200,62 +206,11 @@ function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, r
     return ADDRSCHEMA.ID_TAG + id;
   }
 
-  /**
-   * Create a new address ResourceList object
-   * @param   {string} id   Id of list
-   * @param {object} args Argument object with the following properties:
-   *   {string} id                          Id of list
-   *   {string} title                       Title of list
-   *   {Array}  list                        base list to use
-   *   {number} [flags=storeFactory.NOFLAG] storeFactory flags
-   * @returns {object} address ResourceList object
-   */
-  function newList (id, args) {
-    var listArgs;
-    if (args) {
-      listArgs = angular.copy(args);
-    } else {
-      listArgs = {};
-    }
-    if (!listArgs.id) {
-      listArgs.id = id;
-    }
-    listArgs.factory = 'addressFactory';
-
-    return resourceFactory.newResourceList(storeId(id), listArgs);
-  }
-  
-  function delList (id, flags) {
-    return resourceFactory.delResourceList(storeId(id), flags);
-  }
-  
-  function setList (id, list, flags, title) {
-    return resourceFactory.setResourceList(storeId(id), list, flags, function (flag) {
-      return newList(id, title, list, flag);
-    });
-  }
-  
-  function getList(id, flags) {
-    return resourceFactory.getResourceList(storeId(id), flags);
-  }
-  
-  function initList (id) {
-    return resourceFactory.initResourceList(storeId(id));
-  }
-    
   function setFilter (id, filter, flags) {
     if (!filter) {
       filter = newFilter();
     }
     return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function setPager (id, pager, flags) {
-    return resourceFactory.setPager(storeId(id), pager, flags);
-  }
-
-  function applyFilter (id, filter, flags) {
-    return resourceFactory.applyFilter(storeId(id), filter, flags);
   }
 
   function getSortOptions () {
@@ -289,63 +244,61 @@ function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, r
   
   function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
-    if (typeof sortFxn === 'string') {
-      var index = parseInt(sortFxn.substring(ADDRSCHEMA.ID_TAG.length));
-      switch (index) {
-        case ADDRSCHEMA.ADDRESS_ADDR_IDX:
-          sortFxn = compareAddress;
-          break;
-        case ADDRSCHEMA.ADDRESS_TOWN_IDX:
-          sortFxn = compareTown;
-          break;
-        case ADDRSCHEMA.ADDRESS_CITY_IDX:
-          sortFxn = compareCity;
-          break;
-        case ADDRSCHEMA.ADDRESS_COUNTY_IDX:
-          sortFxn = compareCounty;
-          break;
-        case ADDRSCHEMA.ADDRESS_POSTCODE_IDX:
-          sortFxn = comparePostcode;
-          break;
-        default:
-          sortFxn = undefined;
-          break;
+    if (typeof sortFxn === 'object') {
+      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
+      if (sortItem.idTag === ADDRSCHEMA.ID_TAG) {
+        switch (sortItem.index) {
+          case ADDRSCHEMA.ADDRESS_ADDR_IDX:
+            sortFxn = compareAddress;
+            break;
+          case ADDRSCHEMA.ADDRESS_TOWN_IDX:
+            sortFxn = compareTown;
+            break;
+          case ADDRSCHEMA.ADDRESS_CITY_IDX:
+            sortFxn = compareCity;
+            break;
+          case ADDRSCHEMA.ADDRESS_COUNTY_IDX:
+            sortFxn = compareCounty;
+            break;
+          case ADDRSCHEMA.ADDRESS_POSTCODE_IDX:
+            sortFxn = comparePostcode;
+            break;
+          default:
+            sortFxn = undefined;
+            break;
+        }
       }
     }
     return sortFxn;
   }
 
-  function isDescendingSortOrder (sortBy) {
-    return resourceFactory.isDescendingSortOrder(sortBy);
-  }
-
   function compareAddress (a, b) {
-    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_ADDR_IDX, a, b);
+    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_ADDR_IDX, a, b);
   }
 
   function compareTown (a, b) {
-    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_TOWN_IDX, a, b);
+    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_TOWN_IDX, a, b);
   }
 
   function compareCity (a, b) {
-    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_CITY_IDX, a, b);
+    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_CITY_IDX, a, b);
   }
 
   function compareCounty (a, b) {
-    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_COUNTY_IDX, a, b);
+    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_COUNTY_IDX, a, b);
   }
 
   function comparePostcode (a, b) {
-    return resourceFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_POSTCODE_IDX, a, b);
+    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_POSTCODE_IDX, a, b);
   }
 
-  function stringifyAddress(addr, join) {
+  function stringifyAddress (addr, join) {
     if (!join) {
       join = ', ';
     }
     var str = '';
-    forEachAddrSchemaField(function (idx, dialog, display, model, id) {
-      model.forEach(function (property) {
+    forEachAddrSchemaField(function (idx, fieldProp) {
+      fieldProp[SCHEMA_CONST.MODEL_PROP].forEach(function (property) {
         if (addr[property]) {
           var value = addr[property].trim();
           if (str) {

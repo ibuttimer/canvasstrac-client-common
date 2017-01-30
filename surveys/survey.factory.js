@@ -4,36 +4,35 @@
 
 angular.module('ct.clientCommon')
 
-  .config(function ($provide, schemaProvider) {
+  .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined },
-      { field: 'NAME', modelName: 'name', dfltValue: '' },
-      { field: 'DESCRIPTION', modelName: 'description', dfltValue: '' },
-      { field: 'QUESTIONS', modelName: 'questions', dfltValue: [] }
+      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'NAME', modelName: 'name', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'DESCRIPTION', modelName: 'description', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'QUESTIONS', modelName: 'questions', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY }
     ],
       ids = {},
-      names = [],
       modelProps = [];
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      names.push(details[i].modelName);
       modelProps.push({
         id: i,
         modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue
+        dfltValue: details[i].dfltValue,
+        type: details[i].type
       });
     }
 
-    var ID_TAG = 'survey.',
-      schema = schemaProvider.getSchema('Survey', modelProps),
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('survey'),
+      schema = schemaProvider.getSchema('Survey', modelProps, ID_TAG),
       SURVEY_NAME_IDX =
-        schema.addField('name', 'Name', names[ids.NAME], ID_TAG),
+        schema.addFieldFromModelProp('name', 'Name', ids.NAME),
       SURVEY_DESCRIPTION_IDX =
-        schema.addField('description', 'Description', names[ids.DESCRIPTION], ID_TAG),
+        schema.addFieldFromModelProp('description', 'Description', ids.DESCRIPTION),
       SURVEY_QUESTIONS_IDX =
-        schema.addField('questions', 'Questions', names[ids.QUESTIONS], ID_TAG),
+        schema.addFieldFromModelProp('questions', 'Questions', ids.QUESTIONS),
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
@@ -42,7 +41,6 @@ angular.module('ct.clientCommon')
 
     $provide.constant('SURVEYSCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      NAMES: names, // model names
       MODELPROPS: modelProps,
 
       SCHEMA: schema,
@@ -68,19 +66,19 @@ function surveyFactory($resource, $injector, baseURL, SURVEYSCHEMA, storeFactory
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
+      NAME: 'surveyFactory',
       getSurveys: getSurveys,
       readRspObject: readRspObject,
       readSurveyRsp: readSurveyRsp,
-      storeRspObject: storeRspObject,
-      newObj: newObj,
-      duplicateObj: duplicateObj,
-      delObj: delObj,
-      setObj: setObj,
-      getObj: getObj,
-      initObj: initObj
+      storeRspObject: storeRspObject
     },
-    con = consoleService.getLogger('surveyFactory');
-  
+   con = consoleService.getLogger(factory.NAME),
+   stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
+      storeId: storeId,
+      schema: SURVEYSCHEMA.SCHEMA,
+      addInterface: factory // add standard factory functions to this factory
+    });
+ 
   return factory;
 
   /* function implementation
@@ -140,7 +138,7 @@ function surveyFactory($resource, $injector, baseURL, SURVEYSCHEMA, storeFactory
    */
   function storeRspObject (obj, args) {
     var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
-      factory: $injector.get('surveyFactory')
+      factory: $injector.get(factory.NAME)
     });
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
@@ -150,30 +148,4 @@ function surveyFactory($resource, $injector, baseURL, SURVEYSCHEMA, storeFactory
     return SURVEYSCHEMA.ID_TAG + id;
   }
 
-  function newObj (id, flags) {
-    return storeFactory.newObj(storeId(id), SURVEYSCHEMA.SCHEMA.getObject(), flags);
-  }
-
-  function duplicateObj (id, srcId, flags) {
-    return storeFactory.duplicateObj(storeId(id), storeId(srcId), flags);
-  }
-
-  function delObj (id, flags) {
-    return storeFactory.delObj(storeId(id), flags);
-  }
-  
-  function setObj (id, data, flags) {
-    return storeFactory.setObj(storeId(id), data, flags, SURVEYSCHEMA.SCHEMA.getObject());
-  }
-  
-  function getObj (id, flags) {
-    return storeFactory.getObj(storeId(id), flags);
-  }
-  
-  function initObj (id) {
-    setObj(id, SURVEYSCHEMA.SCHEMA.getObject());
-  }
-
-  
-  
 }

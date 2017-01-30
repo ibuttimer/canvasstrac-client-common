@@ -4,53 +4,55 @@
 
 angular.module('ct.clientCommon')
 
-  .config(function ($provide, schemaProvider) {
+  .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined },
-      { field: 'AVAILABLE', modelName: 'available', dfltValue: true },
-      { field: 'DONTCANVASS', modelName: 'dontCanvass', dfltValue: false },
-      { field: 'TRYAGAIN', modelName: 'tryAgain', dfltValue: false },
-      { field: 'SUPPORT', modelName: 'support', dfltValue: -1 },
-      { field: 'DATE', modelName: 'date', dfltValue: undefined },
-      { field: 'ANSWERS', modelName: 'answers', dfltValue: [] },
-      { field: 'CANVASSER', modelName: 'canvasser', dfltValue: undefined },
-      { field: 'VOTER', modelName: 'voter', dfltValue: undefined },
-      { field: 'ADDRESS', modelName: 'address', dfltValue: undefined }
+      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'AVAILABLE', modelName: 'available', dfltValue: true, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN },
+      { field: 'DONTCANVASS', modelName: 'dontCanvass', dfltValue: false, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN },
+      { field: 'TRYAGAIN', modelName: 'tryAgain', dfltValue: false, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN },
+      { field: 'SUPPORT', modelName: 'support', dfltValue: -1, type: SCHEMA_CONST.FIELD_TYPES.NUMBER },
+      { field: 'DATE', modelName: 'date', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE },
+      { field: 'ANSWERS', modelName: 'answers', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY },
+      { field: 'CANVASSER', modelName: 'canvasser', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'VOTER', modelName: 'voter', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'ADDRESS', modelName: 'address', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      SCHEMA_CONST.CREATEDAT,
+      SCHEMA_CONST.UPDATEDAT
     ],
       ids = {},
-      names = [],
       modelProps = [];
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      names.push(details[i].modelName);
       modelProps.push({
         id: i,
         modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue
+        dfltValue: details[i].dfltValue,
+        type: details[i].type
       });
     }
 
-    var ID_TAG = 'canvassresult.',
-      schema = schemaProvider.getSchema('CanvassResult', modelProps),
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('canvassresult'),
+      schema = schemaProvider.getSchema('CanvassResult', modelProps, ID_TAG),
       CANVASSRES_AVAILABLE_IDX =
-        schema.addField('available', 'Available', names[ids.AVAILABLE], ID_TAG),
+        schema.addFieldFromModelProp('available', 'Available', ids.AVAILABLE),
       CANVASSRES_DONTCANVASS_IDX =
-        schema.addField('dontCanvass', 'Don\'t Canvass', names[ids.DONTCANVASS], ID_TAG),
+        schema.addFieldFromModelProp('dontCanvass', 'Don\'t Canvass', ids.DONTCANVASS),
       CANVASSRES_TRYAGAIN_IDX =
-        schema.addField('tryAgain', 'Try Again', names[ids.TRYAGAIN], ID_TAG),
+        schema.addFieldFromModelProp('tryAgain', 'Try Again', ids.TRYAGAIN),
       CANVASSRES_SUPPORT_IDX =
-        schema.addField('support', 'Support', names[ids.SUPPORT], ID_TAG),
+        schema.addFieldFromModelProp('support', 'Support', ids.SUPPORT),
+      CANVASSRES_DATE_IDX =
+        schema.addFieldFromModelProp('date', 'Date', ids.DATE),
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-                      [CANVASSRES_AVAILABLE_IDX, CANVASSRES_DONTCANVASS_IDX, CANVASSRES_TRYAGAIN_IDX, CANVASSRES_SUPPORT_IDX],
+                      [CANVASSRES_AVAILABLE_IDX, CANVASSRES_DONTCANVASS_IDX, CANVASSRES_TRYAGAIN_IDX, CANVASSRES_SUPPORT_IDX, CANVASSRES_DATE_IDX],
                       ID_TAG);
 
     $provide.constant('CANVASSRES_SCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      NAMES: names, // model names
       MODELPROPS: modelProps,
 
       SCHEMA: schema,
@@ -59,6 +61,7 @@ angular.module('ct.clientCommon')
       CANVASSRES_DONTCANVASS_IDX: CANVASSRES_DONTCANVASS_IDX,
       CANVASSRES_TRYAGAIN_IDX: CANVASSRES_TRYAGAIN_IDX,
       CANVASSRES_SUPPORT_IDX: CANVASSRES_SUPPORT_IDX,
+      CANVASSRES_DATE_IDX: CANVASSRES_DATE_IDX,
 
       SORT_OPTIONS: sortOptions,
       ID_TAG: ID_TAG,
@@ -89,40 +92,31 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassResultFactory.$inject = ['$resource', '$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'surveyFactory',
-  'addressFactory', 'electionFactory', 'userFactory', 'CANVASSRES_SCHEMA', 'consoleService'];
-function canvassResultFactory($resource, $injector, $filter, baseURL, storeFactory, resourceFactory, miscUtilFactory, surveyFactory,
-  addressFactory, electionFactory, userFactory, CANVASSRES_SCHEMA, consoleService) {
+canvassResultFactory.$inject = ['$resource', '$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'miscUtilFactory', 'surveyFactory',
+  'addressFactory', 'electionFactory', 'userFactory', 'SCHEMA_CONST', 'CANVASSRES_SCHEMA', 'consoleService'];
+function canvassResultFactory($resource, $injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, miscUtilFactory, surveyFactory,
+  addressFactory, electionFactory, userFactory, SCHEMA_CONST, CANVASSRES_SCHEMA, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
+      NAME: 'canvassResultFactory',
       getCanvassResult: getCanvassResult,
       readRspObject: readRspObject,
       readCanvassResultRsp: readCanvassResultRsp,
       storeRspObject: storeRspObject,
-      newObj: newObj,
-      duplicateObj: duplicateObj,
-      delObj: delObj,
-      setObj: setObj,
-      getObj: getObj,
-      initObj: initObj,
-      newList: newList,
-      duplicateList: duplicateList,
-      delList: delList,
-      setList: setList,
-      getList: getList,
-      initList: initList,
       setFilter: setFilter,
-      setPager: setPager,
-      applyFilter: applyFilter,
       newFilter: newFilter,
       getFilteredList: getFilteredList,
       forEachSchemaField: forEachCanvassResSchemaField,
       getSortOptions: getSortOptions,
-      getSortFunction: getSortFunction,
-      isDescendingSortOrder: isDescendingSortOrder,
+      getSortFunction: getSortFunction
     },
-    con = consoleService.getLogger('canvassResultFactory');
+    con = consoleService.getLogger(factory.NAME),
+    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
+      storeId: storeId,
+      schema: CANVASSRES_SCHEMA.SCHEMA,
+      addInterface: factory // add standard factory functions to this factory
+    });
   
   return factory;
 
@@ -176,6 +170,8 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
   function readRspObjectValueConvert(id, value) {
     switch (id) {
       case CANVASSRES_SCHEMA.IDs.DATE:
+      case CANVASSRES_SCHEMA.IDs.CREATED:
+      case CANVASSRES_SCHEMA.IDs.UPDATED:
         value = new Date(value);
         break;
       default:
@@ -229,7 +225,7 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
     con.debug('Store canvass result response: ' + canvassRes);
 
     var storeArgs = miscUtilFactory.copyProperties(args, {
-      factory: $injector.get('canvassResultFactory')
+      factory: $injector.get(factory.NAME)
     }, ['objId', 'flags', 'storage', 'next']);
 
     return resourceFactory.storeServerRsp(canvassRes, storeArgs);
@@ -259,141 +255,6 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
   }
   
   /**
-   * Create a new canvass result object
-   * @param {string} id     Factory id of new object
-   * @param {number} flags  storefactory flags
-   */
-  function newObj (id, flags) {
-    return storeFactory.newObj(storeId(id), CANVASSRES_SCHEMA.SCHEMA.getObject(), flags);
-  }
-  
-  /**
-   * Create a new canvass result object by duplicating an existing object
-   * @param {string} id     Factory id of new object
-   * @param {string} srcId  Factory id of object to duplicate
-   * @param {number} flags  storefactory flags
-   */
-  function duplicateObj (id, srcId, flags) {
-    return storeFactory.duplicateObj(storeId(id), storeId(srcId), flags);
-  }
-  
-  /**
-   * Delete a canvass result object
-   * @param {string} id     Factory id of object to delete
-   * @param {number} flags  storefactory flags
-   */
-  function delObj (id, flags) {
-    return storeFactory.delObj(storeId(id), flags);
-  }
-
-  /**
-   * Set a canvass result object
-   * @param {string} id     Factory id of object to set
-   * @param {object} id     data to set
-   * @param {number} flags  storefactory flags
-   */
-  function setObj (id, data, flags) {
-    return storeFactory.setObj(storeId(id), data, flags, CANVASSRES_SCHEMA.SCHEMA.getObject());
-  }
-  
-  /**
-   * Get a canvass result object
-   * @param {string} id     Factory id of object to get
-   * @param {number} flags  storefactory flags
-   */
-  function getObj (id, flags) {
-    return storeFactory.getObj(storeId(id), flags);
-  }
-  
-  /**
-   * Initialise a canvass result object
-   * @param {string} id     Factory id of object to init
-   */
-  function initObj (id) {
-    setObj(id, CANVASSRES_SCHEMA.SCHEMA.getObject());
-  }
-  
-  /**
-   * Create a new canvass result ResourceList object
-   * @param   {string} id   Id of list
-   * @param {object} args Argument object with the following properties:
-   *   {string} id                          Id of list
-   *   {string} title                       Title of list
-   *   {Array}  list                        base list to use
-   *   {number} [flags=storeFactory.NOFLAG] storeFactory flags
-   * @returns {object} canvass result ResourceList object
-   */
-  function newList (id, args) {
-    var listArgs;
-    if (args) {
-      listArgs = angular.copy(args);
-    } else {
-      listArgs = {};
-    }
-    if (!listArgs.id) {
-      listArgs.id = id;
-    }
-    listArgs.factory = 'canvassResultFactory';
-
-    return resourceFactory.newResourceList(storeId(id), listArgs);
-  }
-  
-  /**
-   * Create a new canvass result ResourceList object by duplicating an existing object
-   * @param {string} id     Factory id of new object
-   * @param {string} srcId  Factory id of object to duplicate
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass result ResourceList object
-   */
-  function duplicateList(id, srcId, flags) {
-    return resourceFactory.duplicateList(storeId(id), storeId(srcId), flags);
-  }
-
-  /**
-   * Delete a canvass result ResourceList object
-   * @param {string} id     Factory id of object
-   * @param {number} flags  storefactory flags
-   * @returns {object} copy of deleted canvass result ResourceList object or true/false
-   */
-  function delList (id, flags) {
-    return resourceFactory.delResourceList(storeId(id), flags);
-  }
-  
-  /**
-   * Update a canvass result ResourceList object
-   * @param {string} id     Factory id of object
-   * @param {Array}  list   base list to use
-   * @param {number} flags  storefactory flags
-   * @param {string} title  Title of list if new list may be created
-   * @returns {object} canvass result ResourceList object
-   */
-  function setList(id, list, flags, title) {
-    return resourceFactory.setResourceList(storeId(id), list, flags, function (flag) {
-      return newList(id, title, list, flag);
-    });
-  }
-  
-  /**
-   * Get a canvass result ResourceList object
-   * @param {string} id     Factory id of object
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass result ResourceList object
-   */
-  function getList(id, flags) {
-    return resourceFactory.getResourceList(storeId(id), flags);
-  }
-  
-  /**
-   * Initialise a canvass result ResourceList object to an empty list
-   * @param {string} id     Factory id of object
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass result ResourceList object
-   */
-  function initList(id, flags) {
-    return resourceFactory.initResourceList(storeId(id), flags);
-  }
-    
-  /**
    * Set the filter for a canvass result ResourceList object
    * @param {string} id     Factory id of object
    * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
@@ -405,28 +266,6 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
       filter = newFilter();
     }
     return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  /**
-   * Set the pager for a canvass result ResourceList object
-   * @param {string} id     Factory id of object
-   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass result ResourceList object
-   */
-  function setPager(id, pager, flags) {
-    return resourceFactory.setPager(storeId(id), pager, flags);
-  }
-
-  /**
-   * Apply filter to a canvass result ResourceList object
-   * @param {string} id     Factory id of object
-   * @param {object} filter filter to use or preset filter is used if undefined
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass result ResourceList object
-   */
-  function applyFilter(id, filter, flags) {
-    return resourceFactory.applyFilter(storeId(id), filter, flags);
   }
 
   /**
@@ -488,37 +327,32 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
    */
   function getSortFunction(options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
-    if (typeof sortFxn === 'string') {
-      // decode id to get function
-      var index = parseInt(sortFxn.substring(CANVASSRES_SCHEMA.ID_TAG.length));
-      switch (index) {
-        case CANVASSRES_SCHEMA.CANVASSRES_AVAILABLE_IDX:
-          sortFxn = compareAvailable;
-          break;
-        case CANVASSRES_SCHEMA.CANVASSRES_DONTCANVASS_IDX:
-          sortFxn = compareDontCanvass;
-          break;
-        case CANVASSRES_SCHEMA.CANVASSRES_TRYAGAIN_IDX:
-          sortFxn = compareTryAgain;
-          break;
-        case CANVASSRES_SCHEMA.CANVASSRES_SUPPORT_IDX:
-          sortFxn = compareSupport;
-          break;
-        default:
-          sortFxn = undefined;
-          break;
+    if (typeof sortFxn === 'object') {
+      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
+      if (sortItem.idTag === CANVASSRES_SCHEMA.ID_TAG) {
+        switch (sortItem.index) {
+          case CANVASSRES_SCHEMA.CANVASSRES_AVAILABLE_IDX:
+            sortFxn = compareAvailable;
+            break;
+          case CANVASSRES_SCHEMA.CANVASSRES_DONTCANVASS_IDX:
+            sortFxn = compareDontCanvass;
+            break;
+          case CANVASSRES_SCHEMA.CANVASSRES_TRYAGAIN_IDX:
+            sortFxn = compareTryAgain;
+            break;
+          case CANVASSRES_SCHEMA.CANVASSRES_SUPPORT_IDX:
+            sortFxn = compareSupport;
+            break;
+          case CANVASSRES_SCHEMA.CANVASSRES_DATE_IDX:
+            sortFxn = compareDate;
+            break;
+          default:
+            sortFxn = undefined;
+            break;
+        }
       }
     }
     return sortFxn;
-  }
-
-  /**
-   * Check if sort key is descending order
-   * @param   {object} sortBy   Key to sort by
-   * @returns {boolean} true if is descending order, false otherwise
-   */
-  function isDescendingSortOrder(sortBy) {
-    return resourceFactory.isDescendingSortOrder(sortBy);
   }
 
   /**
@@ -528,7 +362,7 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
    * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
    */
   function compareAvailable (a, b) {
-    return resourceFactory.compareBooleanFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_AVAILABLE_IDX, a, b);
+    return compareFactory.compareBooleanFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_AVAILABLE_IDX, a, b);
   }
 
   /**
@@ -538,7 +372,7 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
    * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
    */
   function compareDontCanvass (a, b) {
-    return resourceFactory.compareBooleanFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_DONTCANVASS_IDX, a, b);
+    return compareFactory.compareBooleanFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_DONTCANVASS_IDX, a, b);
   }
 
   /**
@@ -548,7 +382,7 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
    * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
    */
   function compareTryAgain (a, b) {
-    return resourceFactory.compareBooleanFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_TRYAGAIN_IDX, a, b);
+    return compareFactory.compareBooleanFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_TRYAGAIN_IDX, a, b);
   }
 
   /**
@@ -558,7 +392,17 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
    * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
    */
   function compareSupport (a, b) {
-    return resourceFactory.compareNumberFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_SUPPORT_IDX, a, b);
+    return compareFactory.compareNumberFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_SUPPORT_IDX, a, b);
+  }
+  
+  /**
+   * Compare objects based on 'date' property
+   * @param {object}  a       First object to compare
+   * @param {object}  b       Second object to compare
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareDate (a, b) {
+    return compareFactory.compareDateFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_DATE_IDX, a, b);
   }
   
 }

@@ -4,37 +4,36 @@
 
 angular.module('ct.clientCommon')
 
-  .config(function ($provide, schemaProvider) {
+  .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined },
-      { field: 'FNAME', modelName: 'firstname', dfltValue: '' },
-      { field: 'LNAME', modelName: 'lastname', dfltValue: '' },
-      { field: 'NOTE', modelName: 'note', dfltValue: '' },
-      { field: 'ADDR', modelName: 'address', dfltValue: undefined },
-      { field: 'CONTACT', modelName: 'contactDetails', dfltValue: undefined },
-      { field: 'OWNER', modelName: 'owner', dfltValue: undefined }
+      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'FNAME', modelName: 'firstname', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'LNAME', modelName: 'lastname', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'NOTE', modelName: 'note', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'ADDR', modelName: 'address', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'CONTACT', modelName: 'contactDetails', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'OWNER', modelName: 'owner', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID }
     ],
       ids = {},
-      names = [],
       modelProps = [];
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      names.push(details[i].modelName);
       modelProps.push({
         id: i,
         modelName: details[i].modelName,
-        dfltValue: details[i].dfltValue
+        dfltValue: details[i].dfltValue,
+        type: details[i].type
       });
     }
 
-    var ID_TAG = 'people.',
-      schema = schemaProvider.getSchema('Person', modelProps),
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('people'),
+      schema = schemaProvider.getSchema('Person', modelProps, ID_TAG),
       PEOPLE_FNAME_IDX =
-        schema.addField('fname', 'Firstname', names[ids.FNAME], ID_TAG),
+        schema.addFieldFromModelProp('fname', 'Firstname', ids.FNAME),
       PEOPLE_LNAME_IDX =
-        schema.addField('lname', 'Lastname', names[ids.LNAME], ID_TAG),
+        schema.addFieldFromModelProp('lname', 'Lastname', ids.LNAME),
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
@@ -43,7 +42,6 @@ angular.module('ct.clientCommon')
 
     $provide.constant('PEOPLESCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      NAMES: names, // model names
       MODELPROPS: modelProps,
 
       SCHEMA: schema,
@@ -62,31 +60,26 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-peopleFactory.$inject = ['$resource', 'baseURL', 'storeFactory', 'resourceFactory', 'SCHEMA_CONST', 'PEOPLESCHEMA'];
+peopleFactory.$inject = ['$resource', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'SCHEMA_CONST', 'PEOPLESCHEMA'];
 
-function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, SCHEMA_CONST, PEOPLESCHEMA) {
+function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, compareFactory, SCHEMA_CONST, PEOPLESCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-    ID_TAG: PEOPLESCHEMA.ID_TAG,
+    NAME: 'peopleFactory',
     getPeople: getPeople,
     getCount: getCount,
-    newList: newList,
-    delList: delList,
-    setList: setList,
-    getList: getList,
-    initList: initList,
     setFilter: setFilter,
-    setPager: setPager,
-    applyFilter: applyFilter,
     newFilter: newFilter,
-    forEachSchemaField: forEachSchemaField,
+    forEachSchemaField: forEachPeopleSchemaField,
     getSortOptions: getSortOptions,
-    getSortFunction: getSortFunction,
-    isDescendingSortOrder: isDescendingSortOrder
-
-    
-  };
+    getSortFunction: getSortFunction
+  },
+    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
+      storeId: storeId,
+      schema: PEOPLESCHEMA.SCHEMA,
+      addInterface: factory // add standard factory functions to this factory
+    });
   
   return factory;
 
@@ -105,35 +98,6 @@ function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, SCHEM
     return PEOPLESCHEMA.ID_TAG + id;
   }
 
-  function newList(id, title, list, flags) {
-
-    return resourceFactory.newResourceList(storeId(id), {
-      id: id, 
-      title: title, 
-      list: list,
-      flags: flags,
-      factory: 'peopleFactory'
-    });
-  }
-  
-  function delList (id, flags) {
-    return resourceFactory.delResourceList(storeId(id), flags);
-  }
-  
-  function setList (id, list, flags, title) {
-    return resourceFactory.setResourceList(storeId(id), list, flags, function (flag) {
-      return newList(id, title, list, flag);
-    });
-  }
-  
-  function getList(id, flags) {
-    return resourceFactory.getResourceList(storeId(id), flags);
-  }
-  
-  function initList (id) {
-    return resourceFactory.initResourceList(storeId(id));
-  }
-    
   function setFilter (id, filter, flags) {
     if (!filter) {
       filter = newFilter();
@@ -141,19 +105,11 @@ function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, SCHEM
     return resourceFactory.setFilter(storeId(id), filter, flags);
   }
 
-  function setPager (id, pager, flags) {
-    return resourceFactory.setPager(storeId(id), pager, flags);
-  }
-
-  function applyFilter (id, filter, flags) {
-    return resourceFactory.applyFilter(storeId(id), filter, flags);
-  }
-
   function getSortOptions () {
     return PEOPLESCHEMA.SORT_OPTIONS;
   }
 
-  function forEachSchemaField (callback) {
+  function forEachPeopleSchemaField (callback) {
     PEOPLESCHEMA.SCHEMA.forEachField(callback);
   }
   
@@ -164,33 +120,31 @@ function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, SCHEM
   
   function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
-    if (typeof sortFxn === 'string') {
-      var index = parseInt(sortFxn.substring(PEOPLESCHEMA.ID_TAG.length));
-      switch (index) {
-        case PEOPLESCHEMA.PEOPLE_FNAME_IDX:
-          sortFxn = compareFname;
-          break;
-        case PEOPLESCHEMA.PEOPLE_LNAME_IDX:
-          sortFxn = compareLname;
-          break;
-        default:
-          sortFxn = undefined;
-          break;
+    if (typeof sortFxn === 'object') {
+      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
+      if (sortItem.idTag === PEOPLESCHEMA.ID_TAG) {
+        switch (sortItem.index) {
+          case PEOPLESCHEMA.PEOPLE_FNAME_IDX:
+            sortFxn = compareFname;
+            break;
+          case PEOPLESCHEMA.PEOPLE_LNAME_IDX:
+            sortFxn = compareLname;
+            break;
+          default:
+            sortFxn = undefined;
+            break;
+        }
       }
     }
     return sortFxn;
   }
 
-  function isDescendingSortOrder (sortBy) {
-    return resourceFactory.isDescendingSortOrder(sortBy);
-  }
-
   function compareFname (a, b) {
-    return resourceFactory.compareStringFields(PEOPLESCHEMA.SCHEMA, PEOPLESCHEMA.PEOPLE_FNAME_IDX, a, b);
+    return compareFactory.compareStringFields(PEOPLESCHEMA.SCHEMA, PEOPLESCHEMA.PEOPLE_FNAME_IDX, a, b);
   }
 
   function compareLname (a, b) {
-    return resourceFactory.compareStringFields(PEOPLESCHEMA.SCHEMA, PEOPLESCHEMA.PEOPLE_LNAME_IDX, a, b);
+    return compareFactory.compareStringFields(PEOPLESCHEMA.SCHEMA, PEOPLESCHEMA.PEOPLE_LNAME_IDX, a, b);
   }
 
 

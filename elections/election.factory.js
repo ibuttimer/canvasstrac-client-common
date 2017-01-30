@@ -4,52 +4,50 @@
 
 angular.module('ct.clientCommon')
 
-  .config(function ($provide, schemaProvider) {
+  .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined },
-      { field: 'NAME', modelName: 'name', dfltValue: '' },
-      { field: 'DESCRIPTION', modelName: 'description', dfltValue: '' },
-      { field: 'SEATS', modelName: 'seats', dfltValue: 0 },
-      { field: 'ELECTIONDATE', modelName: 'electionDate', dfltValue: undefined },
-      { field: 'SYSTEM', modelName: 'system', dfltValue: undefined },
-      { field: 'CANDIDATES', modelName: 'candidates', dfltValue: [] }
+      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'NAME', modelName: 'name', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'DESCRIPTION', modelName: 'description', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'SEATS', modelName: 'seats', dfltValue: 0, type: SCHEMA_CONST.FIELD_TYPES.NUMBER },
+      { field: 'ELECTIONDATE', modelName: 'electionDate', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE },
+      { field: 'SYSTEM', modelName: 'system', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'CANDIDATES', modelName: 'candidates', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY }
     ],
       ids = {},
-      names = [],
       modelProps = [];
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      names.push(details[i].modelName);
       modelProps.push({
         id: i,
         modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue
+        dfltValue: details[i].dfltValue,
+        type: details[i].type
       });
     }
 
-    var ID_TAG = 'election.',
-      schema = schemaProvider.getSchema('Election', modelProps),
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('election'),
+      schema = schemaProvider.getSchema('Election', modelProps, ID_TAG),
       ELECTION_NAME_IDX =
-        schema.addField('name', 'Name', names[ids.NAME], ID_TAG),
+        schema.addFieldFromModelProp('name', 'Name', ids.NAME),
       ELECTION_DESCRIPTION_IDX =
-        schema.addField('description', 'Description', names[ids.DESCRIPTION], ID_TAG),
+        schema.addFieldFromModelProp('description', 'Description', ids.DESCRIPTION),
       ELECTION_SEATS_IDX =
-        schema.addField('seats', 'Seats', names[ids.SEATS], ID_TAG),
+        schema.addFieldFromModelProp('seats', 'Seats', ids.SEATS),
       ELECTION_ELECTIONDATE_IDX =
-        schema.addField('date', 'Election Date', names[ids.ELECTIONDATE], ID_TAG),
+        schema.addFieldFromModelProp('date', 'Election Date', ids.ELECTIONDATE),
       ELECTION_SYSTEM_IDX =
-        schema.addField('system', 'System', names[ids.SYSTEM], ID_TAG),
+        schema.addFieldFromModelProp('system', 'System', ids.SYSTEM),
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-                [ELECTION_NAME_IDX, ELECTION_DESCRIPTION_IDX, ELECTION_SEATS_IDX, ELECTION_ELECTIONDATE_IDX, ELECTION_SYSTEM_IDX],
+                [ELECTION_NAME_IDX, ELECTION_SEATS_IDX, ELECTION_ELECTIONDATE_IDX, ELECTION_SYSTEM_IDX],
                 ID_TAG);
 
     $provide.constant('ELECTIONSCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      NAMES: names, // model names
       MODELPROPS: modelProps,
 
       SCHEMA: schema,
@@ -72,41 +70,32 @@ angular.module('ct.clientCommon')
 */
 
 electionFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'consoleService',
-  'miscUtilFactory', 'ELECTIONSCHEMA'];
+  'miscUtilFactory', 'SCHEMA_CONST', 'ELECTIONSCHEMA'];
 
 function electionFactory($resource, $injector, $filter, storeFactory, resourceFactory, consoleService, 
-  miscUtilFactory, ELECTIONSCHEMA) {
+  miscUtilFactory, SCHEMA_CONST, ELECTIONSCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
+      NAME: 'electionFactory',
       getElections: getElections,
       readRspObject: readRspObject,
       readElectionRsp: readElectionRsp,
       storeRspObject: storeRspObject,
-      newList: newList,
-      duplicateList: duplicateList,
-      delList: delList,
-      setList: setList,
-      getList: getList,
-      initList: initList,
       setFilter:setFilter,
-      setPager: setPager,
       getSortOptions: getSortOptions,
       forEachSchemaField: forEachElectionSchemaField,
       newFilter: newFilter,
       getFilteredList: getFilteredList,
       filterFunction: filterFunction,
-      getSortFunction: getSortFunction,
-      isDescendingSortOrder: isDescendingSortOrder,
-      newObj: newObj,
-      duplicateObj: duplicateObj,
-      delObj: delObj,
-      setObj: setObj,
-      getObj: getObj,
-      initObj: initObj
+      getSortFunction: getSortFunction
     },
-    con = consoleService.getLogger('electionFactory');
-
+    con = consoleService.getLogger(factory.NAME),
+    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
+      storeId: storeId,
+      schema: ELECTIONSCHEMA.SCHEMA,
+      addInterface: factory // add standard factory functions to this factory
+    });
   
   return factory;
 
@@ -180,7 +169,7 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
    */
   function storeRspObject (obj, args) {
     var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
-      factory: $injector.get('electionFactory')
+      factory: $injector.get(factory.NAME)
     });
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
@@ -189,65 +178,11 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
     return ELECTIONSCHEMA.ID_TAG + id;
   }
 
-  /**
-   * Create a new election ResourceList object
-   * @param   {string} id                          Id of list
-   * @param   {string} title                       Title of list
-   * @param   {Array}  list                        base list to use
-   * @param   {number} [flags=storeFactory.NOFLAG] storeFactory flags
-   * @returns {object} election ResourceList object
-   */
-  function newList(id, title, list, flags) {
-    return resourceFactory.newResourceList(storeId(id), {
-      id: id, 
-      title: title, 
-      list: list,
-      flags: flags,
-      factory: 'electionFactory'
-    });
-  }
-
-  /**
- * Create a new election ResourceList object by duplicating an existing object
- * @param {string} id     Factory id of new object
- * @param {string} srcId  Factory id of object to duplicate
- * @param {number} flags  storefactory flags
- */
-  function duplicateList(id, srcId, flags) {
-    return resourceFactory.duplicateList(storeId(id), storeId(srcId), flags);
-  }
-
-  function delList(id, flags) {
-    return resourceFactory.delResourceList(storeId(id), flags);
-  }
-
-  function setList(id, list, flags, title) {
-    return resourceFactory.setResourceList(storeId(id), list, flags, function (flag) {
-      return newList(id, title, list, flag);
-    });
-  }
-
-  function getList(id, flags) {
-    return resourceFactory.getResourceList(storeId(id), flags);
-  }
-
-  function initList(id) {
-    return resourceFactory.initResourceList(storeId(id));
-  }
-
   function setFilter(id, filter, flags) {
     if (!filter) {
       filter = newFilter();
     }
     return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function setPager(id, pager, flags) {
-    return resourceFactory.setPager(storeId(id), pager, flags);
-  }
-
-  function applyFilter(id, filter, flags) {
-    return resourceFactory.applyFilter(storeId(id), filter, flags);
   }
 
   function getSortOptions() {
@@ -279,47 +214,31 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
 
   function getSortFunction(options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
-    //if (typeof sortFxn === 'string') {
-    //  var idTag = sortFxn.substring(0, ADDRSCHEMA.ID_TAG.length);
-    //  if (idTag === ADDRSCHEMA.ID_TAG) {
-    //    sortFxn = addressFactory.getSortFunction(options, sortBy);
-    //  } else {
-    //    idTag = sortFxn.substring(0, PEOPLESCHEMA.ID_TAG.length);
-    //    if (idTag === PEOPLESCHEMA.ID_TAG) {
-    //      sortFxn = peopleFactory.getSortFunction(options, sortBy);
-    //    }
-    //  }
-    //}
+    if (typeof sortFxn === 'object') {
+      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
+      if (sortItem.idTag === ELECTIONSCHEMA.ID_TAG) {
+        switch (sortItem.index) {
+//          case ELECTIONSCHEMA.ELECTION_NAME_IDX:
+//            sortFxn = compareAddress;
+//            break;
+//          case ELECTIONSCHEMA.ELECTION_SEATS_IDX:
+//            sortFxn = compareCity;
+//            break;
+//          case ELECTIONSCHEMA.ELECTION_ELECTIONDATE_IDX:
+//            sortFxn = compareCounty;
+//            break;
+//          case ELECTIONSCHEMA.ELECTION_SYSTEM_IDX:
+//            sortFxn = comparePostcode;
+//            break;
+          default:
+            sortFxn = undefined;
+            break;
+        }
+      }
+    }
     return sortFxn;
   }
 
-  function isDescendingSortOrder(sortBy) {
-    return resourceFactory.isDescendingSortOrder(sortBy);
-  }
-
-  function newObj (id, flags) {
-    return storeFactory.newObj(storeId(id), ELECTIONSCHEMA.SCHEMA.getObject(), flags);
-  }
-
-  function duplicateObj (id, srcId, flags) {
-    return storeFactory.duplicateObj(storeId(id), storeId(srcId), flags);
-  }
-
-  function delObj (id, flags) {
-    return storeFactory.delObj(storeId(id), flags);
-  }
-
-  function setObj (id, data, flags) {
-    return storeFactory.setObj(storeId(id), data, flags, ELECTIONSCHEMA.SCHEMA.getObject());
-  }
-
-  function getObj (id, flags) {
-    return storeFactory.getObj(storeId(id), flags);
-  }
-
-  function initObj (id) {
-    setObj(id, ELECTIONSCHEMA.SCHEMA.getObject());
-  }
 }
 
 

@@ -4,36 +4,35 @@
 
 angular.module('ct.clientCommon')
 
-  .config(function ($provide, schemaProvider) {
+  .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined },
-      { field: 'TYPE', modelName: 'type', dfltValue: '' },
-      { field: 'QUESTION', modelName: 'question', dfltValue: '' },
-      { field: 'OPTIONS', modelName: 'options', dfltValue: [] },
-      { field: 'RANGEMIN', modelName: 'rangeMin', dfltValue: 1 },
-      { field: 'RANGEMAX', modelName: 'rangeMax', dfltValue: 10 }
+      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'TYPE', modelName: 'type', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.NUMBER },
+      { field: 'QUESTION', modelName: 'question', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'OPTIONS', modelName: 'options', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.STRING_ARRAY },
+      { field: 'RANGEMIN', modelName: 'rangeMin', dfltValue: 1, type: SCHEMA_CONST.FIELD_TYPES.NUMBER },
+      { field: 'RANGEMAX', modelName: 'rangeMax', dfltValue: 10, type: SCHEMA_CONST.FIELD_TYPES.NUMBER }
     ],
       ids = {},
-      names = [],
       modelProps = [];
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      names.push(details[i].modelName);
       modelProps.push({
         id: i,
         modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue
+        dfltValue: details[i].dfltValue,
+        type: details[i].type
       });
     }
 
-    var ID_TAG = 'ques.',
-      schema = schemaProvider.getSchema('Question', modelProps),
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('ques'),
+      schema = schemaProvider.getSchema('Question', modelProps, ID_TAG),
       QUES_TYPE_IDX =
-        schema.addField('type', 'Type', names[ids.TYPE], ID_TAG),
+        schema.addFieldFromModelProp('type', 'Type', ids.TYPE),
       QUES_QUESTION_IDX =
-        schema.addField('question', 'Question', names[ids.QUESTION], ID_TAG),
+        schema.addFieldFromModelProp('question', 'Question', ids.QUESTION),
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
@@ -95,7 +94,6 @@ angular.module('ct.clientCommon')
 
     $provide.constant('QUESTIONSCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      NAMES: names, // model names
       MODELPROPS: modelProps,
 
       SCHEMA: schema,
@@ -123,6 +121,7 @@ function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFac
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
+      NAME: 'questionFactory',
       getQuestions: getQuestions,
       getQuestionTypes: getQuestionTypes,
       getQuestionTypeObj: getQuestionTypeObj,
@@ -135,16 +134,15 @@ function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFac
       showTextInput: showTextInput,
       readRspObject: readRspObject,
       readQuestionRsp: readQuestionRsp,
-      storeRspObject: storeRspObject,
-      newObj: newObj,
-      duplicateObj: duplicateObj,
-      delObj: delObj,
-      setObj: setObj,
-      getObj: getObj,
-      initObj: initObj
+      storeRspObject: storeRspObject
     },
-    con = consoleService.getLogger('questionFactory');
-  
+    con = consoleService.getLogger(factory.NAME),
+    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
+      storeId: storeId,
+      schema: QUESTIONSCHEMA.SCHEMA,
+      addInterface: factory // add standard factory functions to this factory
+    });
+
   return factory;
 
   /* function implementation
@@ -309,7 +307,7 @@ function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFac
    */
   function storeRspObject (obj, args) {
     var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
-      factory: $injector.get('questionFactory')
+      factory: $injector.get(factory.NAME)
     });
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
@@ -319,30 +317,4 @@ function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFac
     return QUESTIONSCHEMA.ID_TAG + id;
   }
 
-  function newObj (id, flags) {
-    return storeFactory.newObj(storeId(id), QUESTIONSCHEMA.SCHEMA.getObject(), flags);
-  }
-
-  function duplicateObj (id, srcId, flags) {
-    return storeFactory.duplicateObj(storeId(id), storeId(srcId), flags);
-  }
-
-  function delObj (id, flags) {
-    return storeFactory.delObj(storeId(id), flags);
-  }
-  
-  function setObj (id, data, flags) {
-    return storeFactory.setObj(storeId(id), data, flags, QUESTIONSCHEMA.SCHEMA.getObject());
-  }
-  
-  function getObj (id, flags) {
-    return storeFactory.getObj(storeId(id), flags);
-  }
-  
-  function initObj (id) {
-    setObj(id, QUESTIONSCHEMA.SCHEMA.getObject());
-  }
-
-  
-  
 }

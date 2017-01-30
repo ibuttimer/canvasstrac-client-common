@@ -8,64 +8,129 @@ angular.module('ct.clientCommon')
 
     var i, uidx = 0,
       ids = {},
-      names = [],
-      modelProps = [];
+      modelProps = [],
+      peoplePath,
+      addressPath,
+      subSchemaList,
+        
+      details = [
+        { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+        { field: 'UNAME', modelName: 'username', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+        { field: 'ROLE', modelName: 'role', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+        { field: 'PERSON', modelName: 'person', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID }
+      ];
 
-    /* TODO user schema needs more work!!
-        - id fields in addr & person
-     */
+    // user schema is a combination of the person & address
+    for (i = 0; i < details.length; ++i, ++uidx) {
+      ids[details[i].field] = i;          // id is index
+      modelProps.push({
+        id: uidx,
+        modelName: details[i].modelName,
+        dfltValue: details[i].dfltValue,
+        type: details[i].type
+      });
+    }
 
-    // user schem is a combination of the person & address
-    [PEOPLESCHEMA, ADDRSCHEMA].forEach(function (subSchema) {
-      for (i = 0; i < subSchema.MODELPROPS.length; ++i, ++uidx) {
-        ids[subSchema.IDs[i]] = uidx;          // id is index
-        names.push(subSchema.NAMES[i]);
+    peoplePath = modelProps[ids.PERSON].modelName; // path to person in user schema
+    addressPath = [
+      peoplePath,  // path to person in user schema
+      PEOPLESCHEMA.SCHEMA.getModelName(PEOPLESCHEMA.IDs.ADDR) // path to address in person schema
+    ];
+    subSchemaList = [
+      { schema: PEOPLESCHEMA, path: peoplePath },
+      { schema: ADDRSCHEMA, path: addressPath }
+    ];
+
+    subSchemaList.forEach(function (subSchema) {
+      var subId,
+          subIds = [];  // unique ids for subschema items
+
+      for (subId in subSchema.schema.IDs) {
+        subIds.push(subSchema.schema.ID_TAG + subId);
+      }
+
+      for (i = 0; i < subSchema.schema.MODELPROPS.length; ++i, ++uidx) {
+        ids[subIds[i]] = uidx;          // id is index
         modelProps.push({
           id: uidx,
-          modelName: subSchema.MODELPROPS[i].modelName,
-          dfltValue: subSchema.MODELPROPS[i].dfltValue
+          modelName: subSchema.schema.MODELPROPS[i].modelName,
+          modelPath: subSchema.path,
+          dfltValue: subSchema.schema.MODELPROPS[i].dfltValue,
+          type: subSchema.schema.MODELPROPS[i].type
         });
       }
     });
 
-    var ID_TAG = 'user.',
-      schema = schemaProvider.getSchema('User', modelProps),
-      sortOptions;
-  
-    [PEOPLESCHEMA, ADDRSCHEMA].forEach(function (subSchema) {
-      subSchema.SCHEMA.forEachField(
-        function (index, dialog, display, model, id) {
-          schema.addField(dialog, display, model, id);
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('user'),
+      schema = schemaProvider.getSchema('User', modelProps, ID_TAG),
+
+      USER_UNAME_IDX =
+        schema.addFieldFromModelProp('uname', 'Username', ids.UNAME),
+
+      sortOptions,  // user schema sort options
+      sortOptionIndices = // dialog properties of sort options
+        [schema.getField(USER_UNAME_IDX, SCHEMA_CONST.DIALOG_PROP)],
+      sortOptArgs,
+      constToProvide;
+
+    subSchemaList.forEach(function (subSchema) {
+      subSchema.schema.SCHEMA.forEachField(
+        function (index, fieldProp) {
+          schema.addField(
+            fieldProp[SCHEMA_CONST.DIALOG_PROP],
+            fieldProp[SCHEMA_CONST.DISPLAY_PROP],
+            fieldProp[SCHEMA_CONST.MODEL_PROP],
+            fieldProp[SCHEMA_CONST.TYPE_PROP], {
+              path: subSchema.path,
+              cb: function (field) {
+                // save dialog property for index configuration
+                sortOptionIndices.push(field.dialog);
+              }
+            });
         });
     });
 
-    // generate list of sort options
-    sortOptions = angular.copy(PEOPLESCHEMA.SORT_OPTIONS);
-    ADDRSCHEMA.SORT_OPTIONS.forEach(function (option) {
-      var i, 
-        basic = false;
-      for (i = 0; !basic && (i < SCHEMA_CONST.BASIC_SORT_OPTIONS.length); ++i) {
-        basic = (option.value === SCHEMA_CONST.BASIC_SORT_OPTIONS[i].value);
-      }
-      if (!basic) {
-        sortOptions.push(option);
-      }
-    });
+    // generate list of sort options based on basic, person & address sort options
+    sortOptions = schemaProvider.makeSortList(schema, [USER_UNAME_IDX], ID_TAG);
 
+    sortOptArgs = {
+      exOptions: SCHEMA_CONST.BASIC_SORT_OPTIONS,
+      addTo: sortOptions,
+      cb: function (option) {
+        // decode option value to get dialog property
+        var optVal = SCHEMA_CONST.DECODE_SORT_OPTION_VALUE(option.value),
+          i;
+        // set id to user tag & correct index
+        for (i = 0; i < sortOptionIndices.length; ++i) {
+          if (sortOptionIndices[i] === optVal.item) {
+            option.id = SCHEMA_CONST.MAKE_SORT_ITEM_ID(ID_TAG, i);
+            break;
+          }
+        }
+      }
+    };
+
+    schemaProvider.makeSubDocSortList(
+          PEOPLESCHEMA.SORT_OPTIONS, peoplePath, sortOptArgs);
+    schemaProvider.makeSubDocSortList(
+          ADDRSCHEMA.SORT_OPTIONS, addressPath, sortOptArgs);
   
-    $provide.constant('USERSCHEMA', {
+    constToProvide = {
+      ID_TAG: ID_TAG,
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      NAMES: names, // model names
       MODELPROPS: modelProps,
+
+      USER_UNAME_IDX: USER_UNAME_IDX,
 
       SCHEMA: schema,
 
-      SORT_OPTIONS: sortOptions,
-      ID_TAG: ID_TAG
-    });
+      SORT_OPTIONS: sortOptions
+    };
+
+    $provide.constant('USERSCHEMA', constToProvide);
   })
 
-  .filter('filterUser', ['SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'utilFactory', 'miscUtilFactory', function (SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA, utilFactory, miscUtilFactory) {
+  .filter('filterUser', ['SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'miscUtilFactory', function (SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA, miscUtilFactory) {
     
     function filterUserFilter (input, schema, filterBy) {
       
@@ -73,28 +138,43 @@ angular.module('ct.clientCommon')
       var out = [];
 
       if (!miscUtilFactory.isEmpty(filterBy)) {
+        var testCnt = 0,  // num of fields to test as speced by filter
+          matchCnt;       // num of fields matching filter
+        schema.forEachField(function(idx, fieldProp) {
+          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
+            ++testCnt;
+          }
+        });
         angular.forEach(input, function (user) {
-          schema.forEachField(function(idx, dialog, display, models, id) {
-            var filterVal = filterBy[dialog]; // filter uses dialog properties
+          matchCnt = 0;
+          schema.forEachField(function(idx, fieldProp) {
+            var filterVal = filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]];  // filter uses dialog properties
             if (filterVal) {
               var userObj;
-              if (id === PEOPLESCHEMA.ID_TAG) {
-                userObj = user.person;  // person embedded object
-              } else if (id === ADDRSCHEMA.ID_TAG) {
-                userObj = user.person.address;  // address embedded object
+              switch (fieldProp[SCHEMA_CONST.ID_PROP]) {
+                case PEOPLESCHEMA.ID_TAG:
+                  userObj = user.person;  // person embedded object
+                  break;
+                case ADDRSCHEMA.ID_TAG:
+                  userObj = user.person.address;  // address embedded object
+                  break;
               }
               if (userObj) {
                 filterVal = filterVal.toLowerCase();
                 // apply OR logic to multiple model fields
-                var match = false;
-                for (var j = 0; !match && (j < models.length); ++j) {
-                  var userVal = userObj[models[j]];
+                var match = false,
+                  model = fieldProp[SCHEMA_CONST.MODEL_PROP];
+                for (var j = 0; !match && (j < model.length); ++j) {
+                  var userVal = userObj[model[j]];
                   if (userVal) {
                     match = (userVal.toLowerCase().indexOf(filterVal) >= 0);
                   }
                 }
                 if (match) {
-                  out.push(user);
+                  ++matchCnt;
+                  if (matchCnt === testCnt) {
+                    out.push(user);
+                  }
                 }
               }
             }
@@ -115,37 +195,45 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-userFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'miscUtilFactory',
+userFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'compareFactory', 'miscUtilFactory',
   'SCHEMA_CONST', 'USERSCHEMA', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'peopleFactory', 'addressFactory'];
 
-function userFactory($resource, $injector, $filter, storeFactory, resourceFactory, miscUtilFactory,
+function userFactory($resource, $injector, $filter, storeFactory, resourceFactory, compareFactory, miscUtilFactory,
   SCHEMA_CONST, USERSCHEMA, PEOPLESCHEMA, ADDRSCHEMA, peopleFactory, addressFactory) {
 
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-    ID_TAG: USERSCHEMA.ID_TAG,
+    NAME: 'userFactory',
     getUsers: getUsers,
     getCount: getCount,
-    newList: newList,
-    duplicateList: duplicateList,
-    delList: delList,
-    setList: setList,
-    getList: getList,
-    initList: initList,
     setFilter: setFilter,
-    setPager: setPager,
-    applyFilter: applyFilter,
     newFilter: newFilter,
     getFilteredList: getFilteredList,
     forEachSchemaField: forEachUserSchemaField,
     getSortOptions: getSortOptions,
     getSortFunction: getSortFunction,
-    isDescendingSortOrder: isDescendingSortOrder,
     getFilteredResource: getFilteredResource,
     readUserRsp: readUserRsp
 
-  };
+  },
+  stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: storeId,
+    schema: USERSCHEMA.SCHEMA,
+    addInterface: factory // add standard factory functions to this factory
+  }),
+  comparinators = {};
+  
+  // make an array of comparinator objects based on sort indices
+  USERSCHEMA.SORT_OPTIONS.forEach(function (option) {
+    if (option.id) {
+      var itemId = SCHEMA_CONST.DECODE_SORT_ITEM_ID(option.id);
+      if (!comparinators[itemId.index]) {
+        comparinators[itemId.index] = 
+          compareFactory.newComparinator(USERSCHEMA.SCHEMA, itemId.index);
+      }
+    }
+  });
   
   return factory;
 
@@ -200,6 +288,45 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
   }
 
   /**
+   * Read a server response user object
+   * @param {object} response   Server response
+   * @param {object} args       arguments object
+   *                            @see Schema.readProperty() for details
+   * @returns {object}  user object
+   */
+//  function readRspObject (response, args) {
+//    if (!args) {
+//      args = {
+//        convert: readRspObjectValueConvert
+//      };
+//    }
+//    var user = USERSCHEMA.SCHEMA.readProperty(response, args);
+//
+//    con.debug('Read user rsp object: ' + user);
+//
+//    return user;
+//  }
+
+  /**
+   * Convert values read from a server election response
+   * @param {number}    schema id 
+   * @param {object}    read value
+   * @returns {object}  Converted value
+   */
+//  function readRspObjectValueConvert (id, value) {
+//    switch (id) {
+//      case ELECTIONSCHEMA.IDs.ELECTIONDATE:
+//        value = new Date(value);
+//        break;
+//      default:
+//        // other fields require no conversion
+//        break;
+//    }
+//    return value;
+//  }
+
+
+  /**
    * Read a user response from the server
    * @param {object}   response   Server response
    * @param {object}   args       process arguments object as per resourceFactory.storeServerRsp()
@@ -209,7 +336,7 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
    */
   function readUserRsp(response, args) {
     var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
-      factory: $injector.get('userFactory')
+      factory: $injector.get(factory.NAME)
     });
     return resourceFactory.storeServerRsp(response, storeArgs);
   }
@@ -224,86 +351,6 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
   }
 
   /**
-   * Create a new user ResourceList object
-   * @param   {string} id   Id of list
-   * @param {object} args Argument object with the following properties:
-   *   {string} id                          Id of list
-   *   {string} title                       Title of list
-   *   {Array}  list                        base list to use
-   *   {number} [flags=storeFactory.NOFLAG] storeFactory flags
-   * @returns {object} user ResourceList object
-   */
-  function newList (id, args) {
-    var listArgs;
-    if (args) {
-      listArgs = angular.copy(args);
-    } else {
-      listArgs = {};
-    }
-    if (!listArgs.id) {
-      listArgs.id = id;
-    }
-    listArgs.factory = 'userFactory';
-
-    return resourceFactory.newResourceList(storeId(id), listArgs);
-  }
-  
-  /**
-   * Create a new user ResourceList object by duplicating an existing object
-   * @param {string} id     Factory id of new object
-   * @param {string} srcId  Factory id of object to duplicate
-   * @param {number} flags  storefactory flags
-   * @returns {object} user ResourceList object
-   */
-  function duplicateList(id, srcId, flags) {
-    return resourceFactory.duplicateList(storeId(id), storeId(srcId), flags);
-  }
-
-  /**
-   * Delete a user ResourceList object
-   * @param {string} id     Factory id of object
-   * @param {number} flags  storefactory flags
-   * @returns {object} copy of deleted user ResourceList object or true/false
-   */
-  function delList (id, flags) {
-    return resourceFactory.delResourceList(storeId(id), flags);
-  }
-  
-  /**
-   * Update a user ResourceList object
-   * @param {string} id     Factory id of object
-   * @param {Array}  list   base list to use
-   * @param {number} flags  storefactory flags
-   * @param {string} title  Title of list if new list may be created
-   * @returns {object} user ResourceList object
-   */
-  function setList(id, list, flags, title) {
-    return resourceFactory.setResourceList(storeId(id), list, flags, function (flag) {
-      return newList(id, title, list, flag);
-    });
-  }
-  
-  /**
-   * Get a user ResourceList object
-   * @param {string} id     Factory id of object
-   * @param {number} flags  storefactory flags
-   * @returns {object} user ResourceList object
-   */
-  function getList(id, flags) {
-    return resourceFactory.getResourceList(storeId(id), flags);
-  }
-  
-  /**
-   * Initialise a user ResourceList object to an empty list
-   * @param {string} id     Factory id of object
-   * @param {number} flags  storefactory flags
-   * @returns {object} user ResourceList object
-   */
-  function initList(id, flags) {
-    return resourceFactory.initResourceList(storeId(id), flags);
-  }
-    
-  /**
    * Set the filter for a user ResourceList object
    * @param {string} id     Factory id of object
    * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
@@ -315,28 +362,6 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
       filter = newFilter();
     }
     return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  /**
-   * Set the pager for a user ResourceList object
-   * @param {string} id     Factory id of object
-   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
-   * @param {number} flags  storefactory flags
-   * @returns {object} user ResourceList object
-   */
-  function setPager(id, pager, flags) {
-    return resourceFactory.setPager(storeId(id), pager, flags);
-  }
-
-  /**
-   * Apply filter to a user ResourceList object
-   * @param {string} id     Factory id of object
-   * @param {object} filter filter to use or preset filter is used if undefined
-   * @param {number} flags  storefactory flags
-   * @returns {object} user ResourceList object
-   */
-  function applyFilter(id, filter, flags) {
-    return resourceFactory.applyFilter(storeId(id), filter, flags);
   }
 
   /**
@@ -396,32 +421,22 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
    * @param   {object} sortBy       Key to sort by
    * @returns {function} sort function
    */
-  function getSortFunction(options, sortBy) {
+  function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
-    if (typeof sortFxn === 'string') {
-      // decode id to get function from another factory
-      var idTag = sortFxn.substring(0, ADDRSCHEMA.ID_TAG.length);
-      if (idTag === ADDRSCHEMA.ID_TAG) {
-        sortFxn = addressFactory.getSortFunction (options, sortBy);
-      } else {
-        idTag = sortFxn.substring(0, PEOPLESCHEMA.ID_TAG.length);
-        if (idTag === PEOPLESCHEMA.ID_TAG) {
-          sortFxn = peopleFactory.getSortFunction (options, sortBy);
+    if (typeof sortFxn === 'object') {
+      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
+      if (sortItem.idTag === USERSCHEMA.ID_TAG) {
+        if (comparinators[sortItem.index]) {
+          sortFxn = comparinators[sortItem.index].compareFields;
         }
       }
-    }
+    } // else basic index sort or not found
     return sortFxn;
   }
 
-  /**
-   * Check if sort key is descending order
-   * @param   {object} sortBy   Key to sort by
-   * @returns {boolean} true if is descending order, false otherwise
-   */
-  function isDescendingSortOrder(sortBy) {
-    return resourceFactory.isDescendingSortOrder(sortBy);
+  function compareUsername (a, b) {
+    return compareFactory.compareStringFields(USERSCHEMA.SCHEMA, USERSCHEMA.USER_UNAME_IDX, a, b);
   }
-
 }
 
 

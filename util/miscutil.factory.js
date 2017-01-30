@@ -19,6 +19,7 @@ function miscUtilFactory () {
   var factory = {
     copyProperties: copyProperties,
     copyAndAddProperties: copyAndAddProperties,
+    removeProperties: removeProperties,
     isEmpty: isEmpty,
     toArray: toArray,
     arrayPolyfill: arrayPolyfill
@@ -36,7 +37,7 @@ function miscUtilFactory () {
    * @param {Array}   list  list of properties to copy, or all if omitted
    * @return {object} updated to object
    */
-  function copyProperties(from, to, list) {
+  function copyProperties (from, to, list) {
     if (from) {
       if (!list) {
         list = Object.getOwnPropertyNames(from);
@@ -55,7 +56,7 @@ function miscUtilFactory () {
    * @param {Array}   list    list of properties to copy from 'add', or all if omitted
    * @return {object} new object
    */
-  function copyAndAddProperties(from, add, list) {
+  function copyAndAddProperties (from, add, list) {
     var to;
     if (from) {
       to = angular.copy(from);
@@ -64,6 +65,24 @@ function miscUtilFactory () {
     }
     copyProperties(add, to, list);
     return to;
+  }
+
+  /**
+   * Remove properties from an object
+   * @param {object}  from  Object to remove from
+   * @param {Array}   list  list of properties to remove, or all if omitted
+   * @return {object} updated to object
+   */
+  function removeProperties (from, list) {
+    if (from) {
+      if (!list) {
+        list = Object.getOwnPropertyNames(from);
+      }
+      angular.forEach(list, function (prop) {
+        delete from[prop];
+      });
+    }
+    return from;
   }
 
   /**

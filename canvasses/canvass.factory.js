@@ -4,48 +4,48 @@
 
 angular.module('ct.clientCommon')
 
-  .config(function ($provide, schemaProvider) {
+  .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined },
-      { field: 'NAME', modelName: 'name', dfltValue: '' },
-      { field: 'DESCRIPTION', modelName: 'description', dfltValue: '' },
-      { field: 'STARTDATE', modelName: 'startDate', dfltValue: undefined },
-      { field: 'ENDDATE', modelName: 'endDate', dfltValue: undefined },
-      { field: 'ELECTION', modelName: 'election', dfltValue: undefined },
-      { field: 'SURVEY', modelName: 'survey', dfltValue: undefined },
-      { field: 'ADDRESSES', modelName: 'addresses', dfltValue: [] },
-      { field: 'CANVASSERS', modelName: 'canvassers', dfltValue: [] },
-      { field: 'RESULTS', modelName: 'results', dfltValue: [] }
+      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'NAME', modelName: 'name', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'DESCRIPTION', modelName: 'description', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      { field: 'STARTDATE', modelName: 'startDate', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE },
+      { field: 'ENDDATE', modelName: 'endDate', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE },
+      { field: 'ELECTION', modelName: 'election', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'SURVEY', modelName: 'survey', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      { field: 'ADDRESSES', modelName: 'addresses', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY },
+      { field: 'CANVASSERS', modelName: 'canvassers', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY },
+      { field: 'RESULTS', modelName: 'results', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY }
     ],
       ids = {},
-      names = [],
-      modelProps = [];
+      modelProps = [],
+      i;
 
-    for (var i = 0; i < details.length; ++i) {
+    for (i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      names.push(details[i].modelName);
       modelProps.push({
         id: i,
         modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue
+        dfltValue: details[i].dfltValue,
+        type: details[i].type
       });
     }
 
-    var ID_TAG = 'canvass.',
-      schema = schemaProvider.getSchema('Canvass', modelProps),
+    var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('canvass'),
+      schema = schemaProvider.getSchema('Canvass', modelProps, ID_TAG),
       CANVASS_NAME_IDX =
-        schema.addField('name', 'Name', names[ids.NAME], ID_TAG),
+        schema.addFieldFromModelProp('name', 'Name', ids.NAME),
       CANVASS_DESCRIPTION_IDX =
-        schema.addField('description', 'Description', names[ids.DESCRIPTION], ID_TAG),
+        schema.addFieldFromModelProp('description', 'Description', ids.DESCRIPTION),
       CANVASS_STARTDATE_IDX =
-        schema.addField('start', 'Start Date', names[ids.STARTDATE], ID_TAG),
+        schema.addFieldFromModelProp('start', 'Start Date', ids.STARTDATE),
       CANVASS_ENDDATE_IDX =
-        schema.addField('end', 'End Date', names[ids.ENDDATE], ID_TAG),
+        schema.addFieldFromModelProp('end', 'End Date', ids.ENDDATE),
       CANVASS_ELECTION_IDX =
-        schema.addField('election', 'Election', names[ids.ELECTION], ID_TAG),
+        schema.addFieldFromModelProp('election', 'Election', ids.ELECTION),
       CANVASS_SURVEY_IDX =
-        schema.addField('survey', 'Survey', names[ids.SURVEY], ID_TAG),
+        schema.addFieldFromModelProp('survey', 'Survey', ids.SURVEY),
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
@@ -54,7 +54,6 @@ angular.module('ct.clientCommon')
 
     $provide.constant('CANVASSSCHEMA', {
       IDs: ids,     // id indices, i.e. ADDR1 == 0 etc.
-      NAMES: names, // model names
       MODELPROPS: modelProps,
 
       SCHEMA: schema,
@@ -77,33 +76,33 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassFactory.$inject = ['$resource', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'surveyFactory',
-  'addressFactory', 'electionFactory', 'userFactory', 'canvassResultFactory', 'CANVASSSCHEMA', 'consoleService'];
-function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFactory, miscUtilFactory, surveyFactory,
-  addressFactory, electionFactory, userFactory, canvassResultFactory, CANVASSSCHEMA, consoleService) {
+canvassFactory.$inject = ['$resource', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'surveyFactory', 'questionFactory',
+  'addressFactory', 'electionFactory', 'userFactory', 'canvassResultFactory', 'SCHEMA_CONST', 'CANVASSSCHEMA', 'SURVEYSCHEMA', 'RESOURCE_CONST', 'CHARTS', 'consoleService'];
+function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFactory, miscUtilFactory, surveyFactory, questionFactory,
+  addressFactory, electionFactory, userFactory, canvassResultFactory, SCHEMA_CONST, CANVASSSCHEMA, SURVEYSCHEMA, RESOURCE_CONST, CHARTS, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
+      NAME: 'canvassFactory',
       getCanvasses: getCanvasses,
       getCanvassAllocation: getCanvassAllocation,
       readRspObject: readRspObject,
       readCanvassRsp: readCanvassRsp,
       storeRspObject: storeRspObject,
       readCanvassAllocationRsp: readCanvassAllocationRsp,
-      newObj: newObj,
-      duplicateObj: duplicateObj,
-      delObj: delObj,
-      setObj: setObj,
-      getObj: getObj,
-      initObj: initObj,
       setLabeller: setLabeller,
       linkCanvasserToAddr: linkCanvasserToAddr,
       unlinkAddrFromCanvasser: unlinkAddrFromCanvasser,
       unlinkAddrListFromCanvasser: unlinkAddrListFromCanvasser
     },
-    con = consoleService.getLogger('canvassFactory'),
-    labeller;
-  
+    con = consoleService.getLogger(factory.NAME),
+    labeller,
+    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
+      storeId: storeId,
+      schema: CANVASSSCHEMA.SCHEMA,
+      addInterface: factory // add standard factory functions to this factory
+    });
+
   return factory;
 
   /* function implementation
@@ -200,61 +199,70 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
   /**
    * Store a canvass response from the server
    * @param {object}   response   Server response
-   * @param {object}   args       process arguments object as per resourceFactory.storeServerRsp()
-   *                              without 'factory' argument, i.e.
-   *    {string|Array}  objId       id/array of ids of canvass objects to save response data to
-   *    {number}        flags       storefactory flags
-   *    {function}      next        function to call after processing
+   * @param {object}   args       process arguments object
    *                              @see resourceFactory.storeServerRsp()
-   *                              With the addition of the following:
-   *    {string|Array}  addrId      id/array of ids of list object(s) to save address data to
-   *    {string|Array}  userId      id/array of ids of list object to save canvasser data to
-   *    {string|Array}  resultsId   id/array of ids of list object to save canvass results to
-   *    {object}        surveyArgs  arguments to process embedded survey sub doc, 
-   *                                @see surveyFactory.readSurveyRsp() for details
-   *    {object}        electionArgs arguments to process embedded election sub doc, 
-   *                                @see electionFactory.readElectionRsp() for details
-   * @return {object}   Canvass ResourceList object
+   * @return {object}   Canvass object
    */
   function storeRspObject (canvass, args) {
 
-    var flags = (args.flags || storeFactory.NOFLAG),
-      array;
+    var subObjects, i, stdArgs, path, subDoc,
+      addrArgs, addrPath = CANVASSSCHEMA.SCHEMA.getModelName(CANVASSSCHEMA.IDs.ADDRESSES),
+      resultArgs, resultPath = CANVASSSCHEMA.SCHEMA.getModelName(CANVASSSCHEMA.IDs.RESULTS),
+      surveyArgs, surveyPath = CANVASSSCHEMA.SCHEMA.getModelName(CANVASSSCHEMA.IDs.SURVEY);
+    
+    // store sub objects first
+    if (args.subObj) {
+      subObjects = miscUtilFactory.toArray(args.subObj);
+      for (i = 0; i < subObjects.length; ++i) {
+        stdArgs = resourceFactory.standardiseArgs(subObjects[i]);
+        subObjects[i] = stdArgs;
 
-    if (canvass.election && args.electionArgs) {
-      var election = electionFactory.storeRspObject(canvass.election, args.electionArgs);
-      canvass.election = election._id;
-    }
-    if (canvass.survey && args.surveyArgs) {
-      var survey = surveyFactory.storeRspObject(canvass.survey, args.surveyArgs);
-      canvass.survey = survey._id;
-    }
-    // addresses/canvassers/results are all populated
-    if (args.addrId) {
-      if (!canvass.addresses) {
-        canvass.addresses = [];
+        path = stdArgs.path;
+        
+        if (path === addrPath) {
+          addrArgs = stdArgs;
+        } else if (path === resultPath) {
+          resultArgs = stdArgs;
+        } else if (path === surveyPath) {
+          surveyArgs = stdArgs;
+        }
+        
+        if (stdArgs.path && stdArgs.type && stdArgs.factory) {
+          if (SCHEMA_CONST.FIELD_TYPES.IS_ARRAY(stdArgs.type)) {
+            // process a populated sub doc array
+            if (!canvass[path]) {
+              canvass[path] = [];
+            }
+            processPopulatedSubDoc(canvass[path], stdArgs.objId, stdArgs.factory, stdArgs.flags);
+          } else {
+            // process a populated sub doc
+            if (canvass[path]) {
+              /* remove path/schema info as not required as object is being passed
+                 (if its left in it'll mess up any sub objects) */
+              subDoc = stdArgs.factory.storeRspObject(canvass[path], 
+                         resourceFactory.removeSchemaPathTypeArgs(angular.copy(stdArgs)));
+              // set canvass field to objectId
+              canvass[path] = subDoc._id;
+            }
+          }
+        }
       }
-      processPopulatedSubDoc(canvass.addresses, args.addrId, addressFactory, flags);
-    }
-    if (args.userId) {
-      if (!canvass.canvassers) {
-        canvass.canvassers = [];
+      
+      // TODO come up with method of generalising the linking of fields
+      // cringe!!!
+      if (addrArgs && resultArgs) {
+        linkAddrListAndResults(resultArgs.objId, addrArgs.objId);
       }
-      processPopulatedSubDoc(canvass.canvassers, args.userId, userFactory, flags);
-    }
-    if (args.resultsId) {
-      if (!canvass.results) {
-        canvass.results = [];
+      if (surveyArgs && resultArgs) {
+        linkQuestionsAndResults(resultArgs, surveyArgs);
       }
-      processPopulatedSubDoc(canvass.results, args.resultsId, canvassResultFactory, flags);
-
-      linkAddrListAndResults(args.resultsId, args.addrId);
+      
     }
 
     con.debug('Store canvass response: ' + canvass);
 
     var storeArgs = miscUtilFactory.copyProperties(args, {
-        factory: $injector.get('canvassFactory')
+        factory: $injector.get(factory.NAME)
       }, ['objId', 'flags', 'storage', 'next']);
 
     return resourceFactory.storeServerRsp(canvass, storeArgs);
@@ -284,29 +292,36 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
    * @param {number}        flags   storefactory flags
    */
   function processPopulatedSubDoc (array, ids, factory, flags) {
-    if (ids) {
-      // jic no native implementation is available
-      miscUtilFactory.arrayPolyfill();
+    // jic no native implementation is available
+    miscUtilFactory.arrayPolyfill();
 
-      // set list to a copy of the response list
-      var idArray = miscUtilFactory.toArray(ids),
-        arrayCopy = angular.copy(array);
+    // set list to a copy of the response list
+    var arrayCopy = [],
+      readEntry;
 
-      idArray.forEach(function (id) {
-        var list = factory.getList(id);
-        if (!list && storeFactory.doCreateAny(flags)) {
-          list = factory.newList(id);
-        }
-        if (list) {
-          // set list to copy
-          list.setList(arrayCopy, flags);
-        }
+    if (factory.readRspObject) {
+      array.forEach(function (entry) {
+        readEntry = factory.readRspObject(entry);
+        arrayCopy.push(readEntry);
       });
+    } else {
+      arrayCopy = angular.copy(array);
+    }
 
-      // change objects in response to what host expects i.e. ObjectIds
-      for (var i = 0; i < array.length; ++i) {
-        array[i] = array[i]._id;
+    miscUtilFactory.toArray(ids).forEach(function (id) {
+      var list = factory.getList(id);
+      if (!list && storeFactory.doCreateAny(flags)) {
+        list = factory.newList(id);
       }
+      if (list) {
+        // set list to copy
+        list.setList(arrayCopy, flags);
+      }
+    });
+
+    // change objects in response to what host expects i.e. ObjectIds
+    for (var i = 0; i < array.length; ++i) {
+      array[i] = array[i]._id;
     }
   }
 
@@ -476,13 +491,13 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     * @param {string|Array} resultsId   id/array of ids of canvass result lists
     * @param {string|Array} addrId      id/array of ids of address lists
     */
-  function linkAddrListAndResults(resultsId, addrId) {
-    if (addrId) {
+  function linkAddrListAndResults (resultsId, addrId) {
+    if (resultsId && addrId) {
       // set list to a copy of the response list
       var addrArray = miscUtilFactory.toArray(addrId),
-        resArray = miscUtilFactory.toArray(resultsId);
+        changed = [];
 
-      resArray.forEach(function (resId) {
+      miscUtilFactory.toArray(resultsId).forEach(function (resId) {
         var list = canvassResultFactory.getList(resId);
         if (list) {
           list.forEachInList(function (result) {
@@ -495,17 +510,190 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
                 if (addr) {
                   // link address and canvass result
                   addr.canvassResult = result._id;
-                  addrList.exeChanged();
+                  if (changed.indexOf(addrList) === -1) {
+                    changed.push(addrList);
+                  }
                 }
               }
             });
           });
         }
       });
+      changed.forEach(function (list) {
+        list.exeChanged();
+      });
     }
   }
 
+  /**
+    * Link survey questions to canvass results
+    * @param {string|Array} resultArgs  id/array of ids of canvass result lists
+    * @param {string|Array} surveyArgs  id/array of ids of survey objects
+    */
+  function linkQuestionsAndResults (resultArgs, surveyArgs) {
+    if (resultArgs && surveyArgs) {
+      // set list to a copy of the response list
+      var i, quesArray = [],
+        quesPath = SURVEYSCHEMA.SCHEMA.getModelName(SURVEYSCHEMA.IDs.QUESTIONS),
+        resArray = miscUtilFactory.toArray(resultArgs.objId);
+      
+      // retrieve all local work question lists
+      miscUtilFactory.toArray(surveyArgs).forEach(function (survey) {
+        if (survey.subObj) {
+          miscUtilFactory.toArray(survey.subObj).forEach(function (sub) {
+            if (sub.path === quesPath) {
+              // questions local work object
+              var quesList = questionFactory.getList(sub.objId);
+              if (quesList) {
+                quesArray.push(quesList);
+                
+                quesList.forEachInList(function (question) {
+                  if (questionFactory.showQuestionOptions(question.type)) {
+                    question.labels = question.options;
 
+                    /* chart.js pie, polarArea & doughnut charts may be displayed using
+                        single data series (i.e. data = []), whereas chart.js radar, line &
+                        bar require multiple data series (i.e. data = [[], []]) */
+                    var array = []; // raw data array
+                    for (i = 0; i < question.labels.length; ++i) {
+                      array[i] = 0;
+
+                      // add properties to the question whose values are the indices into the data array
+                      question[makeOptionIndexPropertyName(question.labels[i])] = i;
+                    }
+                    question.chart = resultArgs.customArgs.getChartType(question.type);
+                    switch (question.chart) {
+                      case CHARTS.PIE:
+                      case CHARTS.POLAR:
+                      case CHARTS.DOUGHNUT:
+                        question.data = array;
+                        // series info not required
+                        break;
+                      case CHARTS.BAR:
+                      case CHARTS.RADAR:
+                      case CHARTS.LINE:
+                        question.data = [array];
+                        question.series = ['0'];  // just one series
+                        break;
+                    }
+                    question.maxValue = 0;
+                    
+                  } else if (questionFactory.showTextInput(question.type)) {
+                    question.data = [];
+                  }
+                });
+              }
+            }
+          });
+        }
+      });
+
+      if (quesArray.length) {
+        // loop through results linking answers & questions
+        var list,
+          start,
+          ques,
+          procObj = function (list) {
+            var self = this;
+            self.list = list;
+            self.answer = undefined;
+            self.question = undefined;
+            self.seriesIdx = -1;
+            
+            self.setAnswer = function (answer) {
+              self.answer = answer;
+            };
+            self.setQuestion = function (question) {
+              self.question = question;
+            };
+            self.setSeriesIdx = function (seriesIdx) {
+              self.seriesIdx = seriesIdx;
+            };
+            self.clrSeriesIdx = function () {
+              self.seriesIdx = -1;
+            };
+
+            self.testQuestionId = function (ques) {
+              return (self.answer.question._id === ques._id);
+            };
+            self.procData = function (ans) {
+              var idx,
+                value;
+
+              if (questionFactory.showRankingNumber(self.question.type)) {
+                /* if its a ranking question the answer is the value between min & 
+                    max rank, not the displayed options */
+                idx = parseInt(ans) - self.question.rangeMin;
+              } else {
+                idx = self.question[makeOptionIndexPropertyName(ans)];
+              }
+              if (idx >= 0) {
+                if (self.seriesIdx >= 0) {
+                  value = ++self.question.data[self.seriesIdx][idx];
+                } else {
+                  value = ++self.question.data[idx];
+                }
+                if (value > self.question.maxValue) {
+                  self.question.maxValue = value;
+                }
+              }
+            };
+          };
+        resArray.forEach(function (resId) {
+          list = canvassResultFactory.getList(resId);
+          if (list) {
+            var runnerObj = new procObj(list);
+            // loop through results 
+            list.forEachInList(function (result) {
+              if (result.answers && result.answers.length) {
+
+                // loop thru answers looking for questions from list
+                result.answers.forEach(function (answer) {
+                  runnerObj.setAnswer(answer);
+
+                  quesArray.forEach(function (qlist) {
+                    for (start = 0; start >= 0; ++start) {
+                      start = qlist.findIndexInList(runnerObj.testQuestionId, start);
+                      if (start >= 0) {
+                        ques = qlist.getFromList(start);
+                        
+                        // set data for options from answer
+                        if (ques) {
+                          if (questionFactory.showQuestionOptions(ques.type)) {
+                            runnerObj.setQuestion(ques);
+                            if (ques.series) {
+                              // only one series for now but ..
+                              runnerObj.setSeriesIdx(ques.series.length - 1);
+                            } else {
+                              runnerObj.clrSeriesIdx();
+                            }
+
+                            var splits = answer.answer.split(',');
+                            splits.forEach(runnerObj.procData);
+
+                          } else if (questionFactory.showTextInput(ques.type)) {
+                            ques.data.push(answer.answer);
+                          }
+                        }
+                      } else {
+                        break;
+                      }
+                    }
+                  });
+                });
+              }
+            });
+          }
+        });
+      }                                                          
+    }
+  }
+
+  function makeOptionIndexPropertyName (option) {
+    return 'optIdx_' + option;
+  }
+  
+  
   /**
    * Link the specified canvasser and address
    * @param {object}   canvasser  Canvasser object to link
@@ -601,61 +789,6 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
   function storeId (id) {
     return CANVASSSCHEMA.ID_TAG + id;
   }
-  
-  /**
-   * Create a new canvass object
-   * @param {string} id     Factory id of new object
-   * @param {number} flags  storefactory flags
-   */
-  function newObj (id, flags) {
-    return storeFactory.newObj(storeId(id), CANVASSSCHEMA.SCHEMA.getObject(), flags);
-  }
-  
-  /**
-   * Create a new canvass object by duplicating an existing object
-   * @param {string} id     Factory id of new object
-   * @param {string} srcId  Factory id of object to duplicate
-   * @param {number} flags  storefactory flags
-   */
-  function duplicateObj (id, srcId, flags) {
-    return storeFactory.duplicateObj(storeId(id), storeId(srcId), flags);
-  }
-  
-  /**
-   * Delete a canvass object
-   * @param {string} id     Factory id of object to delete
-   * @param {number} flags  storefactory flags
-   */
-  function delObj (id, flags) {
-    return storeFactory.delObj(storeId(id), flags);
-  }
 
-  /**
-   * Set a canvass object
-   * @param {string} id     Factory id of object to set
-   * @param {object} id     data to set
-   * @param {number} flags  storefactory flags
-   */
-  function setObj (id, data, flags) {
-    return storeFactory.setObj(storeId(id), data, flags, CANVASSSCHEMA.SCHEMA.getObject());
-  }
-  
-  /**
-   * Get a canvass object
-   * @param {string} id     Factory id of object to get
-   * @param {number} flags  storefactory flags
-   */
-  function getObj (id, flags) {
-    return storeFactory.getObj(storeId(id), flags);
-  }
-  
-  /**
-   * Initialise a canvass object
-   * @param {string} id     Factory id of object to init
-   */
-  function initObj (id) {
-    setObj(id, CANVASSSCHEMA.SCHEMA.getObject());
-  }
-  
 }
 

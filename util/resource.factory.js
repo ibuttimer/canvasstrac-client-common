@@ -5,9 +5,14 @@
 angular.module('ct.clientCommon')
 
   .constant('RESOURCE_CONST', (function () {
+    var schemaPathTYpe = ['path', 'type', 'schema', 'schemaId'],
+      stdArgs = schemaPathTYpe.concat(['objId', 'flags', 'subObj', 'customArgs']);
     return {
       STORE_LIST: 'list',
-      STORE_OBJ: 'obj'
+      STORE_OBJ: 'obj',
+      
+      SCHEMA_PATH_TYPE_ARGS: schemaPathTYpe,
+      STD_ARGS: stdArgs
     };
   })())
 
@@ -17,36 +22,48 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-resourceFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'miscUtilFactory', 
+resourceFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'miscUtilFactory', 'pagerFactory', 'compareFactory',
   'consoleService', 'SCHEMA_CONST', 'RESOURCE_CONST'];
 
-function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, miscUtilFactory, 
+function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, miscUtilFactory, pagerFactory, compareFactory,
   consoleService, SCHEMA_CONST, RESOURCE_CONST) {
+
+  // jic no native implementation is available
+  miscUtilFactory.arrayPolyfill();
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
+    NAME: 'resourceFactory',
     getResources: getResources,
     getCount: getCount,
     storeServerRsp: storeServerRsp,
+    standardiseArgs: standardiseArgs,
+    standardisePathTypeArgs: standardisePathTypeArgs,
+    copyPathTypeArgs: copyPathTypeArgs,
+    removeSchemaPathTypeArgs: removeSchemaPathTypeArgs,
+    getServerRsp: getServerRsp,
+    
+    registerStandardFactory: registerStandardFactory,
+    
     newResourceList: newResourceList,
     duplicateList: duplicateList,
     delResourceList: delResourceList,
     setResourceList: setResourceList,
     getResourceList: getResourceList,
     initResourceList: initResourceList,
+
     setFilter: setFilter,
     setPager: setPager,
     applyFilter: applyFilter,
     newResourceFilter: newResourceFilter,
     getSortFunction: getSortFunction,
+    sortResourceList: sortResourceList,
     isDescendingSortOrder: isDescendingSortOrder,
-    compareStringFields: compareStringFields,
-    compareNumberFields: compareNumberFields,
-    compareBooleanFields: compareBooleanFields,
     buildQuery: buildQuery
-  };
+  },
+  standardFactories = {};
   
-  return factory;
+//  return factory;
 
   /* function implementation
     -------------------------- */
@@ -86,51 +103,270 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     */
     return $resource(baseURL + url + '/count', null, null);
   }
-  
+
+  function registerStandardFactory (name, args) {
+    var factory = standardFactories[name];
+    if (!factory) {
+      factory = $injector.instantiate(StandardFactory, {
+        name: name,
+        storeId: args.storeId,
+        schema: args.schema
+      });
+      standardFactories[name] = factory;
+
+      if (args.addInterface) {
+        for (var prop in Object.getPrototypeOf(factory)) {
+          args.addInterface[prop] = factory[prop].bind(factory);
+        }
+      }
+    }
+    return factory;
+  }
+
   /**
    * Store a response from the server
-   * @param {object}   response   Server response
-   * @param {object}   args       process arguments object with following properties
-   *    {string|Array} objId      id/array of ids of object to save response data to
-   *    {string}       storage    save as list or object flag; STORE_LIST, STORE_OBJ, default depends on response
-   *    {number}       flags      storefactory flags
-   *    {object}       factory    factory to handle saving of objects/lists
-   *    {function}     next       function to call after processing
-   * @return {object}  ResourceList object
+   * @param {object}       response Server response
+   * @param {object}       args     process arguments object with following properties:
+   *  @param {string|Array} objId    id/array of ids of object to save response data to
+   *  @param {string}       storage  save as list or object flag; STORE_LIST, STORE_OBJ, default depends on response
+   *  @param {string}       path     path within response object to object to store
+   *  @param {string}       type     object type, @see SCHEMA_CONST.FIELD_TYPES
+   *  @param {object}       schema   Schema to use to retrieve object path & type
+   *  @param {number}       schemaId Schema id to use to retrieve object path & type
+   *  @param {number}       flags    storefactory flags
+   *  @param {object|string} factory  factory (or factory name) to handle saving of objects/lists
+   *  @param {function}     next     function to call after processing
+   *  @param {Object|array} subObj   additional set(s) of arguments for sub objects
+   * @return {object}       ResourceList or object
    */
-  function storeServerRsp(response, args) {
+  function storeServerRsp (response, args) {
 
-    var flags = (args.flags || storeFactory.NOFLAG),
-      idArray = miscUtilFactory.toArray(args.objId),
+    var stdArgs = standardiseArgs(args),
+      factory = stdArgs.factory,
+      idArray = stdArgs.objId,
       resp,
-      asList, i;
+      asList, i,
+      toSave = response;
 
-    if (args.storage === RESOURCE_CONST.STORE_LIST) {
+    if (stdArgs.path) {
+      // drill down to get obj to save
+      var splits = stdArgs.path.split('.');
+      splits.forEach(function (split) {
+        if (toSave) {
+          toSave = toSave[split];
+        }
+      });
+    }
+
+    if (stdArgs.storage === RESOURCE_CONST.STORE_LIST) {
       asList = true;
-    } else if (args.storage === RESOURCE_CONST.STORE_OBJ) {
+    } else if (stdArgs.storage === RESOURCE_CONST.STORE_OBJ) {
       asList = false;
     } else {
-      asList = Array.isArray(response);
+      asList = Array.isArray(toSave);
     }
 
     if (asList) {
       // process a query response
-      resp = args.factory.setList(idArray[0], response, flags);
+      if (toSave) {
+        resp = factory.setList(idArray[0], toSave, stdArgs.flags);
+      } else {
+        resp = factory.initList(idArray[0], stdArgs.flags);
+      }
       // if multiple objId's secondary ids are set to copies
       for (i = 1; i < idArray.length; ++i) {
-        args.factory.duplicateList(idArray[i], idArray[0], storeFactory.DUPLICATE_OR_EXIST);
+        factory.duplicateList(idArray[i], idArray[0], storeFactory.DUPLICATE_OR_EXIST);
       }
     } else {
       // process a get response
-      resp = args.factory.setObj(idArray[0], response, flags);
+      if (toSave) {
+        resp = factory.setObj(idArray[0], toSave, stdArgs.flags);
+      } else {
+        resp = factory.initObj(idArray[0], stdArgs.flags);
+      }
       // if multiple objId's secondary ids are set to copies
       for (i = 1; i < idArray.length; ++i) {
-        args.factory.duplicateObj(idArray[i], idArray[0], storeFactory.DUPLICATE_OR_EXIST);
+        factory.duplicateObj(idArray[i], idArray[0], storeFactory.DUPLICATE_OR_EXIST);
+      }
+    }
+    
+    if (stdArgs.subObj) {
+      // recursive call to save sub objects
+      var subObjArray = miscUtilFactory.toArray(stdArgs.subObj);
+      subObjArray.forEach(function (subObj) {
+        storeServerRsp(response, subObj);
+      });
+    }
+
+    if (stdArgs.next) {
+      stdArgs.next(resp);
+    }
+    return resp;
+  }
+
+  /**
+   * Standardise a server response argument object
+   * @param {object}       args     process arguments object with following properties:
+   * @see storeServerRsp()
+   * @return {object}       arguments object
+   */
+  function standardiseArgs (args) {
+
+    var stdArgs = angular.copy(args);
+
+    if (typeof args.factory === 'string') {
+      // get factory instance from injector
+      stdArgs.factory = $injector.get(args.factory);
+    }
+    if (stdArgs.objId) {
+      stdArgs.objId = miscUtilFactory.toArray(stdArgs.objId);
+    } else {
+      stdArgs.objId = [];
+    }
+    stdArgs.flags = (args.flags || storeFactory.NOFLAG);
+
+    copySchemaPathTypeArgs(
+      standardisePathTypeArgs(copySchemaPathTypeArgs(args)), stdArgs);
+
+    if (stdArgs.subObj) {
+      if (Array.isArray(stdArgs.subObj)) {
+        for (var i = 0; i < stdArgs.subObj.length; ++i) {
+          stdArgs.subObj[i] = standardiseArgs(stdArgs.subObj[i]);
+        }
+      } else {
+        stdArgs.subObj = [standardiseArgs(stdArgs.subObj)];
       }
     }
 
-    if (args.next) {
-      args.next(resp);
+    return stdArgs;
+  }
+
+  /**
+   * Standardise a server response argument object
+   * @param {object}       args     process arguments object with following properties:
+   * @see storeServerRsp()
+   * @return {object}       arguments object
+   */
+  function standardisePathTypeArgs (args, makeCopy) {
+    
+    makeCopy = (typeof makeCopy === 'undefined' ? true : makeCopy);
+
+    var stdArgs = args;
+    if (makeCopy) {
+      stdArgs = copySchemaPathTypeArgs(args);
+    }
+
+    if (stdArgs.schema && 
+        (typeof stdArgs.schemaId === 'number') && (stdArgs.schemaId >= 0)) {
+      if (!stdArgs.path) {
+        // path not explicitly provided, retrieve from schema & schemaId
+        stdArgs.path = stdArgs.schema.getModelName(stdArgs.schemaId);
+      }
+      if (!stdArgs.type) {
+        // path not explicitly provided, retrieve from schema & schemaId
+        stdArgs.type = stdArgs.schema.getType(stdArgs.schemaId);
+      }
+    }
+
+    return stdArgs;
+  }
+
+  /**
+   * Copy schema/path/type arguments from an argument object if not set
+   * @param {object}       args     process arguments object
+   * @param {object}       from     process arguments object to copy from
+   * @return {object}       arguments object
+   */
+  function copyPathTypeArgs (args, from) {
+
+    var stdArgs = args;
+
+    if (!args.path) {
+      stdArgs = copySchemaPathTypeArgs(args);
+      if (from.path) {
+        stdArgs.path = from.path;
+        if (!stdArgs.type && from.type) {
+          stdArgs.type = from.type;
+        }
+      } else {
+        if (!stdArgs.schema && from.schema) {
+          stdArgs.schema = from.schema;
+        }
+        if (!stdArgs.schemaId && from.schemaId) {
+          stdArgs.schemaId = from.schemaId;
+        }
+      }
+    }
+
+    return stdArgs;
+  }
+
+  /**
+   * Copy the standard schema/path/type arguments
+   * @param {object}       args     process arguments object to copy from
+   * @param {object}       to       process arguments object to copy to
+   * @return {object}       arguments object
+   */
+  function copySchemaPathTypeArgs (args, to) {
+    if (!to) {
+      to = {};
+    }
+    return miscUtilFactory.copyProperties(args, to, 
+                          RESOURCE_CONST.SCHEMA_PATH_TYPE_ARGS);
+  }
+
+  /**
+   * Remove the standard schema/path/type arguments
+   * @param {object}       args     process arguments object to remove from
+   * @return {object}       arguments object
+   */
+  function removeSchemaPathTypeArgs (args) {
+    return miscUtilFactory.removeProperties(args,
+                          RESOURCE_CONST.SCHEMA_PATH_TYPE_ARGS);
+  }
+
+  /**
+   * Get a stored response from the server
+   * @param {object}       args     process arguments object with following properties:
+   * @see storeServerRsp()
+   * @return {object}       ResourceList or object
+   */
+  function getServerRsp (args) {
+
+    var stdArgs = standardiseArgs(args),
+      factory = stdArgs.factory,
+      idArray = stdArgs.objId,
+      resp = [],
+      asList = true,
+      asObj = true,
+      read;
+
+    if (stdArgs.storage === RESOURCE_CONST.STORE_LIST) {
+      asObj = false;
+    } else if (stdArgs.storage === RESOURCE_CONST.STORE_OBJ) {
+      asList = false;
+    } 
+    // else no type specified so try both
+
+    if (asList) {
+      idArray.forEach(function (id) {
+        read = factory.getList(id, stdArgs.flags);
+        if (read) {
+          resp.push(read);
+        }
+      });
+    } 
+    if (asObj) {
+      idArray.forEach(function (id) {
+        read = factory.getObj(id, stdArgs.flags);
+        if (read) {
+          resp.push(read);
+        }
+      });
+    }
+
+    if (stdArgs.next) {
+      stdArgs.next(resp);
     }
     return resp;
   }
@@ -175,24 +411,11 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     resourceList = $injector.instantiate(ResourceList, listArgs);
     newList = storeFactory.newObj(storeId, resourceList, listArgs.flags);
 
-    if (listArgs.factory) {
+    if (typeof listArgs.factory === 'string') {
       newList.factory = $injector.get(listArgs.factory);
     }
     
     return newList;
-    
-//    if (Array.isArray(title)) {
-//      flags = list;
-//      list = title;
-//      title = undefined;
-//    }
-//    if (typeof list === 'number') {
-//      flags = list;
-//      list = undefined;
-//    }
-//    flags = flags || storeFactory.NOFLAG;
-//    var resourceList = $injector.instantiate(ResourceList, {id: id, title: title, list: list, flags: flags});
-//    return storeFactory.newObj(storeId, resourceList, flags);
   }
   
   /**
@@ -203,7 +426,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    */
   function duplicateList(storeId, srcStoreId, flags) {
     return storeFactory.duplicateObj(storeId, srcStoreId, flags);
-    }
+  }
 
   /**
    * Delete a ResourceList object
@@ -227,8 +450,8 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    */
   function setResourceList (storeId, list, flags, newList) {
     var resourceList = getResourceList(storeId);
-    if (!resourceList && storeFactory.doCreate(flags)) {
-      resourceList = newList(storeFactory.CREATE);
+    if (!resourceList && storeFactory.doCreateAny(flags)) {
+      resourceList = newList(flags);
     }
     if (resourceList) {
       resourceList.setList(list, flags);
@@ -331,21 +554,21 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * Get the sort function
    * @param   {object} sortOptions  List of possible sort option
    * @param   {object} sortBy       Key to sort by
-   * @returns {function} sort function or id to retrieve sort function
+   * @returns {function|object} sort function or sort option
    */
-  function getSortFunction(sortOptions, sortBy) {
+  function getSortFunction (sortOptions, sortBy) {
     var sortFxn;
     for (var i = 0; (i < sortOptions.length) && !sortFxn; ++i) {
       var option = sortOptions[i].value;
       if (option === sortBy) {
         for (var j = 0; j < SCHEMA_CONST.BASIC_SORT_OPTIONS.length; ++j) {
           if (option === SCHEMA_CONST.BASIC_SORT_OPTIONS[j].value) {
-            sortFxn = compareIndices;
+            sortFxn = compareFactory.compareIndices;
             break;
           }
         }
         if (!sortFxn) {
-          sortFxn = sortOptions[i].id;  // return id
+          sortFxn = sortOptions[i];  // return sort option
         }
       }
     }
@@ -353,103 +576,59 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   }
 
   /**
+   * Sort a ResourceList
+   * @param   {object}   resList         List to sort
+   * @param   {function} getSortFunction Function to return  sort function
+   * @param   {object}   sortOptions     List of possible sort option
+   * @param   {object}   sortByValue     Key to sort by
+   * @returns {Array}    sorted list
+   */
+  function sortResourceList (resList, getSortFunction, sortOptions, sortByValue) {
+    var sortList,
+        sortFxn;
+    
+    if (resList && resList.factory) {
+      if (!getSortFunction) {
+        if (resList.factory) {
+          getSortFunction = resList.factory.getSortFunction;
+        }
+      }
+      if (!sortOptions) {
+        sortOptions = resList.sortOptions;
+      }
+      if (!sortByValue) {
+        if (resList.sortBy) {
+          sortByValue = resList.sortBy.value;
+        }
+      }
+
+      if (getSortFunction && sortOptions && sortByValue) {
+        sortList = resList.list;
+
+        sortFxn = getSortFunction(sortOptions, sortByValue);
+        if (sortFxn) {
+          sortList.sort(sortFxn);
+          if (isDescendingSortOrder(sortByValue)) {
+            sortList.reverse();
+          }
+
+          if (resList.pager) {
+            pagerFactory.updatePager(resList.pager.id, sortList);
+          }
+        }
+      }
+    }
+    return sortList;
+  }
+
+  
+  /**
    * Check if sort key is descending order
    * @param   {object} sortBy   Key to sort by
    * @returns {boolean} true if is descending order, false otherwise
    */
-  function isDescendingSortOrder(sortBy) {
+  function isDescendingSortOrder (sortBy) {
     return (sortBy.charAt(0) === SCHEMA_CONST.SORT_DESC);
-  }
-
-  /**
-   * Compare object's using 'index' property
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  function compareIndices(a, b) {
-    return (a.index - b.index);
-  }
-
-  /**
-   * Compare strings
-   * @param {string}  a   First string to compare
-   * @param {string}  b   Second string to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  function compareStrings(a, b) {
-    if (a < b) {
-      return -1;
-    }
-    if (a > b) {
-      return 1;
-    }
-    return 0;
-  }
-
-  /**
-   * Compare boolean, i.e. false before true
-   * @param {boolean}  a   First boolean to compare
-   * @param {boolean}  b   Second boolean to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  function compareBoolean(a, b) {
-    if (!a && b) {
-      return -1;
-    }
-    if (a && !b) {
-      return 1;
-    }
-    return 0;
-  }
-
-  /**
-   * Compare objects based on schema fields that have string values
-   * @param {object}  schema  Schema object
-   * @param {number}  index   Index of Schema field to use
-   * @param {object}  a       First object to compare
-   * @param {object}  b       Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  function compareStringFields(schema, index, a, b) {
-    var result = 0,
-      array = schema.getField(index, SCHEMA_CONST.MODEL_PROP);
-    for (var j = 0; (j < array.length) && (result === 0) ; ++j) {
-      result = compareStrings(a[array[j]], b[array[j]]);
-    }
-    return result;
-  }
-
-  /**
-   * Compare objects based on schema fields that have numeric values
-   * @param {object}  schema  Schema object
-   * @param {number}  index   Index of Schema field to use
-   * @param {object}  a       First object to compare
-   * @param {object}  b       Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  function compareNumberFields(schema, index, a, b) {
-    var result = 0,
-      array = schema.getField(index, SCHEMA_CONST.MODEL_PROP);
-    for (var j = 0; (j < array.length) && (result === 0) ; ++j) {
-      result = a[array[j]] - b[array[j]];
-    }
-    return result;
-  }
-
-  /**
-   * Compare objects based on schema fields that have boolean values
-   * @param {object}  schema  Schema object
-   * @param {number}  index   Index of Schema field to use
-   * @param {object}  a       First object to compare
-   * @param {object}  b       Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  function compareBooleanFields(schema, index, a, b) {
-    var result = 0,
-      array = schema.getField(index, SCHEMA_CONST.MODEL_PROP);
-    for (var j = 0; (j < array.length) && (result === 0); ++j) {
-      result = compareBoolean(a[array[j]], b[array[j]]);
-    }
-    return result;
   }
 
   /**
@@ -462,10 +641,11 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     var query = {};
     if (filter) {
       // using the dialog fields to build an object based on the model fields
-      forEachSchemaField(function (idx, dialog, display, models) {
-        var filterVal = filter[dialog];
+      forEachSchemaField(function (idx, fieldProp) {
+        var filterVal = filter[fieldProp[SCHEMA_CONST.DIALOG_PROP]];
         if (filterVal) {
-          var field = '';
+          var field = '',
+            models = fieldProp[SCHEMA_CONST.MODEL_PROP];
           for (var i = 0; i < models.length; ++i) {
             if (i > 0) {
               field += ' ';
@@ -480,23 +660,246 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   }
 
 
-}
+
+  function StandardFactory (storeFactory, name, storeId, schema) {
+    this.name = name;
+    this.storeId = storeId;
+    if (typeof storeId !== 'function') {
+      throw new TypeError('Incorrect argument type: storeId');
+    }
+    this.schema = schema;
+  }
+  
+  /**
+   * Create a new object
+   * @param {string} id     Factory id of new object
+   * @param {number} flags  storefactory flags
+   */
+  StandardFactory.prototype.newObj = function (id, flags) {
+    return storeFactory.newObj(this.storeId(id), this.schema.getObject(), flags);
+  };
+  
+  /**
+   * Create a new object by duplicating an existing object
+   * @param {string} id     Factory id of new object
+   * @param {string} srcId  Factory id of object to duplicate
+   * @param {number} flags  storefactory flags
+   */
+  StandardFactory.prototype.duplicateObj = function (id, srcId, flags) {
+    return storeFactory.duplicateObj(this.storeId(id), this.storeId(srcId), flags);
+  };
+  
+  /**
+   * Delete an object
+   * @param {string} id     Factory id of object to delete
+   * @param {number} flags  storefactory flags
+   */
+  StandardFactory.prototype.delObj = function (id, flags) {
+    return storeFactory.delObj(this.storeId(id), flags);
+  };
+
+  /**
+   * Set an object
+   * @param {string} id     Factory id of object to set
+   * @param {object} data   data to set
+   * @param {number} flags  storefactory flags
+   */
+  StandardFactory.prototype.setObj = function (id, data, flags) {
+    return storeFactory.setObj(this.storeId(id), data, flags, this.schema.getObject());
+  };
+  
+  /**
+   * Get an object
+   * @param {string} id     Factory id of object to get
+   * @param {number} flags  storefactory flags
+   */
+  StandardFactory.prototype.getObj = function (id, flags) {
+    return storeFactory.getObj(this.storeId(id), flags);
+  };
+  
+  /**
+   * Initialise an object
+   * @param {string} id     Factory id of object to init
+   * @param {number} flags  storefactory flags
+   */
+  StandardFactory.prototype.initObj = function (id, flags) {
+    setObj(id, this.schema.getObject(), flags);
+  };
+
+  /**
+   * Create a new ResourceList object
+   * @param   {string} id   Id of list
+   * @param {object} args Argument object with the following properties:
+   *   {string} id                          Id of list
+   *   {string} title                       Title of list
+   *   {Array}  list                        base list to use
+   *   {number} [flags=storeFactory.NOFLAG] storeFactory flags
+   * @returns {object} address ResourceList object
+   */
+  StandardFactory.prototype.newList = function (id, args) {
+    var listArgs;
+    if (args) {
+      listArgs = angular.copy(args);
+    } else {
+      listArgs = {};
+    }
+    if (!listArgs.id) {
+      listArgs.id = id;
+    }
+    listArgs.factory = this.name;
+
+    return newResourceList(this.storeId(id), listArgs);
+  };
+  
+  /**
+   * Create a new ResourceList object by duplicating an existing object
+   * @param {string} id     Factory id of new object
+   * @param {string} srcId  Factory id of object to duplicate
+   * @param {number} flags  storefactory flags
+   * @returns {object} canvass result ResourceList object
+   */
+  StandardFactory.prototype.duplicateList = function (id, srcId, flags) {
+    return duplicateList(this.storeId(id), this.storeId(srcId), flags);
+  };
+
+  
+  /**
+   * Delete a ResourceList object
+   * @param {string}         id    Id string to use
+   * @param {number}         flags storeFactory flags; the following are used
+   *                               - COPY: to return copy of list
+   *                               - other flags ignored
+   * @returns {object|boolean} Copy of deleted ResourceList object, or true if successful
+   */
+  StandardFactory.prototype.delList = function (id, flags) {
+    return delResourceList(this.storeId(id), flags);
+  };
+  
+  /**
+   * Set the base list for a ResourceList object
+   * @param {string} id    Id string to use
+   * @param {Array}  list  base list to use
+   * @param {number} flags storefactoryFlags
+   * @param {string} title Title of list if new list must be created
+   * @returns {object} ResourceList object
+   */
+  StandardFactory.prototype.setList = function (id, list, flags, title) {
+    return setResourceList(this.storeId(id), list, flags, 
+            function (flags) {
+              return this.newList(id, { 
+                id: id, title: title, list: list, flags: flags }
+              );
+            });
+  };
+  
+  /**
+   * Get an existing ResourceList object
+   * @param {string} id   Id string to use
+   * @param   {number}   flags   storefactoryFlags
+   * @returns {object} ResourceList object
+   */
+  StandardFactory.prototype.getList = function (id, flags) {
+    return getResourceList(this.storeId(id), flags);
+  };
+  
+  /**
+   * Initialise a ResourceList object to an emply base list
+   * @param {string} id   Id string to use
+   * @param {number}   flags   storefactoryFlags
+   * @returns {object} ResourceList object
+   */
+  StandardFactory.prototype.initList = function (id, flags) {
+    return initResourceList(this.storeId(id), flags);
+  };
+
+  /**
+   * Check if sort key is descending order
+   * @param   {object} sortBy   Key to sort by
+   * @returns {boolean} true if is descending order, false otherwise
+   */
+  StandardFactory.prototype.isDescendingSortOrder = function (sortBy) {
+    return isDescendingSortOrder(sortBy);
+  };
+
+  /**
+   * Set the pager for a ResourceList object
+   * @param {string} id     Factory id of object
+   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
+   * @param {number} flags  storefactory flags
+   * @returns {object} canvass result ResourceList object
+   */
+  StandardFactory.prototype.setPager = function (id, pager, flags) {
+    return setPager(this.storeId(id), pager, flags);
+  };
+
+  /**
+   * Apply filter to a ResourceList object
+   * @param {string} id     Factory id of object
+   * @param {object} filter filter to use or preset filter is used if undefined
+   * @param {number} flags  storefactory flags
+   * @returns {object} canvass result ResourceList object
+   */
+  StandardFactory.prototype.applyFilter = function (id, filter, flags) {
+    return applyFilter(this.storeId(id), filter, flags);
+  };
 
 
-/**
- * A resource list object containing base and filtered lists
- * @param {function} $filter         Angular filter service
- * @param {function} storeFactory    storeFactory service
- * @param {object}   miscUtilFactory miscUtilFactory service
- * @param {object}   pagerFactory    pagerFactory
- * @param {string}   id              id string
- * @param {string}   title           title string
- * @param {Array}    list            base list to use
- * @param {number}   flags           storeFactory flags
- */
-function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id, title, list, flags) {
-  if (!list) {
-    list = [];
+  /**
+   * Set the base list
+   * @param {Array}  list  base list to use
+   * @param {number} flags storeFactory flags; the following are used
+   *                       - COPY: to set list to a copy of the argument
+   *                       - APPLY_FILTER: to immediately filter list
+   *                       - other flags ignored
+   */
+  function setListForResourceList (resList, list, flags) {
+    var toSet = list;
+    if (toSet) {
+      toSet = miscUtilFactory.toArray(list);
+      if (storeFactory.doCopy(flags)) {
+        toSet = angular.copy(toSet);
+      }
+    }
+    resList.list = toSet;       // unfiltered list
+    resList.filterList = toSet; // filtered list
+    if (toSet) {
+      resList.count = toSet.length;       // total number of possibilities
+      resList.filterCount = toSet.length; // total after filter
+    } else {
+      resList.count = 0;
+      resList.filterCount = 0;
+    }
+    if (storeFactory.doApplyFilter(flags)) {
+      resList.applyFilter();
+    }
+    resList.exeChanged();
+  }
+
+  /**
+   * A resource list object containing base and filtered lists
+   * @param {function} $filter         Angular filter service
+   * @param {function} storeFactory    storeFactory service
+   * @param {object}   miscUtilFactory miscUtilFactory service
+   * @param {object}   pagerFactory    pagerFactory
+   * @param {string}   id              id string
+   * @param {string}   title           title string
+   * @param {Array}    list            base list to use
+   * @param {number}   flags           storeFactory flags
+   */
+  function ResourceList ($filter, storeFactory, resourceFactory, miscUtilFactory, pagerFactory, id, title, list, flags) {
+    if (!list) {
+      list = [];
+    }
+
+    // configure object
+    this.id = id;
+    this.title = title;
+    setListForResourceList(this, list, flags);
+    this.filter = {};         // filter
+    this.pager = undefined;   // pager
+    this.selCount = 0;        // selected count
+    this.sortBy = undefined;  // sort by option is filled in appropriate controller
+    this.onChange = [];       // functions to be executed when contents are changed
   }
 
   /**
@@ -507,28 +910,9 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id,
    *                       - APPLY_FILTER: to immediately filter list
    *                       - other flags ignored
    */
-  this.setList = function (list, flags) {
-    var toSet = list;
-    if (toSet) {
-      toSet = miscUtilFactory.toArray(list);
-      if (storeFactory.doCopy(flags)) {
-        toSet = angular.copy(toSet);
-      }
-    }
-    this.list = toSet;       // unfiltered list
-    this.filterList = toSet; // filtered list
-    if (toSet) {
-      this.count = toSet.length;       // total number of possibilities
-      this.filterCount = toSet.length; // total after filter
-    } else {
-      this.count = 0;
-      this.filterCount = 0;
-    }
-    if (storeFactory.doApplyFilter(flags)) {
-      this.applyFilter();
-    }
-    this.exeChanged();
-  };
+  ResourceList.prototype.setList = function (list, flags) {
+    setListForResourceList(this, list, flags);
+  }
 
   /**
    * Add an entry to the base list
@@ -538,7 +922,7 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id,
    *                       - APPLY_FILTER: to immediately filter list
    *                       - other flags ignored
    */
-  this.addToList = function (entry, flags) {
+  ResourceList.prototype.addToList = function (entry, flags) {
     if (!this.list) {
       this.setList([entry], flags);
     } else {
@@ -556,7 +940,10 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id,
     this.exeChanged();
   };
 
-  this.exeChanged = function () {
+  /**
+   * Notify all listeners of a change
+   */
+  ResourceList.prototype.exeChanged = function () {
     if (this.onChange) {
       for (var i = 0; i < this.onChange.length; ++i) {
         this.onChange[i](this);
@@ -564,15 +951,19 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id,
     }
   };
 
-  this.addOnChange = function (toExe) {
-    this.onChange.push(toExe);
+  /**
+   * Add an onChange listener
+   * @param {function} listener   listener function to callback
+   */
+  ResourceList.prototype.addOnChange = function (listener) {
+    this.onChange.push(listener);
   };
 
   /**
    * Call the callback function for each of the entries in this objects list
    * @param {function} callback   function to callback
    */
-  this.forEachInList = function (callback) {
+  ResourceList.prototype.forEachInList = function (callback) {
     this.list.forEach(function (entry) {
       callback(entry);
     });
@@ -583,7 +974,7 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id,
    * @param {function} predicate function to test entries in list
    * @param {number}   start     offset to start from
    */
-  this.findInList = function (predicate, start) {
+  ResourceList.prototype.findInList = function (predicate, start) {
     if (typeof predicate !== 'function') {
       throw new TypeError('predicate must be a function');
     }
@@ -610,7 +1001,7 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id,
    * @param {function} predicate function to test entries in list
    * @param {number}   start     offset to start from
    */
-  this.findIndexInList = function (predicate, start) {
+  ResourceList.prototype.findIndexInList = function (predicate, start) {
     if (typeof predicate !== 'function') {
       throw new TypeError('predicate must be a function');
     }
@@ -636,9 +1027,9 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id,
    * Return an entry in this objects list
    * @param {number}   index     index of entry to return
    */
-  this.getFromList = function (index) {
+  ResourceList.prototype.getFromList = function (index) {
     var length = this.list.length >>> 0;
-    
+
     if ((index < 0) || (index >= length)) {
       throw new RangeError('index out of range');
     }
@@ -650,16 +1041,15 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id,
    * @param   {object} filter filter to use or preset filter used if undefined
    * @returns {object} this object to facilitate chaining
    */
-  this.applyFilter = function (filter) {
+  ResourceList.prototype.applyFilter = function (filter) {
     if (typeof filter === 'undefined') {
       // use preset filter object
-      filter = this.filter.filterBy;
+      if (this.filter) {
+        filter = this.filter.filterBy;
+      }
     }
 
     filter = filter || {};
-    if (!flags) {
-      flags = storeFactory.NOFLAG;
-    }
 
     if (!miscUtilFactory.isEmpty(filter)) {
       if (this.filter.customFunction) {
@@ -681,7 +1071,22 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id,
     return this;
   };
 
-  this.toString = function () {
+  /**
+   * Sort this ResourceList
+   * @param   {function} getSortFunction Function to return  sort function
+   * @param   {object}   sortOptions     List of possible sort option
+   * @param   {object}   sortByValue     Key to sort by
+   * @returns {Array}    sorted list
+   */
+  ResourceList.prototype.sort = function (getSortFunction, sortOptions, sortByValue) {
+    return resourceFactory.sortResourceList(this, getSortFunction, sortOptions, sortByValue);
+  };
+
+  /**
+   * toString method for a ResourceList object
+   * @returns {string} string representation
+   */
+  ResourceList.prototype.toString = function () {
     return 'ResourceList{ id: ' + this.id +
     ', title: ' + this.title +
     ', list: ' + this.list.toString() +
@@ -693,42 +1098,36 @@ function ResourceList ($filter, storeFactory, miscUtilFactory, pagerFactory, id,
     ', selCount: ' + this.selCount +
     ', sortBy: ' + this.sortBy + '}';
   };
-  
-  // configure object
-  this.id = id;
-  this.title = title;
-  this.setList(list, flags);
-  this.filter = {};         // filter
-  this.pager = undefined;   // pager
-  this.selCount = 0;        // selected count
-  this.sortBy = undefined;  // sort by option is filled in appropriate controller
-  this.onChange = [];       // functions to be executed when contents are changed
-}
 
 
-/**
- * Filter for a ResourceList object
- * @param   {object} schema Schema object for which filter will be used
- * @param   {object} base   Base object to filter by
- */
-function ResourceFilter (schema, base) {
-  
-  this.schema = schema; // keep a ref to field array
-  this.filterBy = {};
-  
-  if (base) {
-    // filter utilises dialog fields
-    var newfilterBy = {};
-    this.schema.forEachField(function (idx, dialog, display, model, id) {
-      var filterVal = base[dialog];
-      if (filterVal) {
-        newfilterBy[dialog] = filterVal;
-      }
-    });
-    this.filterBy = newfilterBy;
+  /**
+   * Filter for a ResourceList object
+   * @param   {object} schema Schema object for which filter will be used
+   * @param   {object} base   Base object to filter by
+   */
+  function ResourceFilter (SCHEMA_CONST, schema, base) {
+    this.schema = schema; // keep a ref to field array
+    this.filterBy = {};
+
+    if (base) {
+      // filter utilises dialog fields
+      var newfilterBy = {};
+      this.schema.forEachField(function (idx, fieldProp) {
+        var filterVal = base[fieldProp[SCHEMA_CONST.DIALOG_PROP]];
+        if (filterVal) {
+          newfilterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]] = filterVal;
+        }
+      });
+      this.filterBy = newfilterBy;
+    }
   }
-  
-  this.toString = function (prefix) {
+
+  /**
+   * toString method for a filter for a ResourceList object
+   * @param   {string} prefix Prefix dtring
+   * @returns {string} string representation
+   */
+  ResourceFilter.prototype.toString = function (prefix) {
     var str,
       filterBy = this.filterBy;
     if (!prefix) {
@@ -736,13 +1135,13 @@ function ResourceFilter (schema, base) {
     } else {
       str = prefix;
     }
-    this.schema.forEachField(function (idx, dialog, display, model, id) {
-      var filterVal = filterBy[dialog];
+    this.schema.forEachField(function (idx, fieldProp) {
+      var filterVal = filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]];
       if (filterVal) {
         if (str.length > 0) {
           str += '\n';
         }
-        str += display + ': ' + filterVal;
+        str += fieldProp[SCHEMA_CONST.MODEL_PROP] + ': ' + filterVal;
       }
     });
     if (str.length === 0) {
@@ -750,8 +1149,11 @@ function ResourceFilter (schema, base) {
     }
     return str;
   };
-}
 
+  // need the return here so that object prototype functions are added
+  return factory;
+
+}
 
 
 
