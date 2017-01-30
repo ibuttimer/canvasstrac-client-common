@@ -723,7 +723,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @param {number} flags  storefactory flags
    */
   StandardFactory.prototype.initObj = function (id, flags) {
-    setObj(id, this.schema.getObject(), flags);
+    return this.setObj(id, this.schema.getObject(), flags);
   };
 
   /**
