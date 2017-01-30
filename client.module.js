@@ -41,6 +41,16 @@ angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCordova'])
       }
     };
   })())
+  .constant('CHARTS', (function () {
+    return {
+      PIE: 'pie',
+      POLAR: 'polar',
+      DOUGHNUT: 'doughnut',
+      BAR: 'bar',
+      RADAR: 'radar',
+      LINE: 'line'
+    };
+  })())
   .config(function () {
     // no config for the moment
   });
