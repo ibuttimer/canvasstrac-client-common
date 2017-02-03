@@ -104,6 +104,15 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     return $resource(baseURL + url + '/count', null, null);
   }
 
+  /**
+   * Registger a standard factory
+   * @param   {string}   name         Name of the new factory
+   * @param   {object}   args         Optional srguments:
+   * @param   {function} storeId      Function to generate store ids for objects created by the factory
+   * @param   {object}   schema       Schema associated with the factory
+   * @param   {object}   addInterface Object ro add standard factory interface to
+   * @returns {object}   new factory 
+   */
   function registerStandardFactory (name, args) {
     var factory = standardFactories[name];
     if (!factory) {
@@ -661,6 +670,13 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
 
 
+  /**
+   * StandardFactory object
+   * @throws {TypeError} on incorrect argument type
+   * @param {string}   name    Name of factory
+   * @param {function} storeId Function to make store ids for objects created by the factory
+   * @param {object}   schema  Schema associated with this factory
+   */
   function StandardFactory (storeFactory, name, storeId, schema) {
     this.name = name;
     this.storeId = storeId;
@@ -912,7 +928,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    */
   ResourceList.prototype.setList = function (list, flags) {
     setListForResourceList(this, list, flags);
-  }
+  };
 
   /**
    * Add an entry to the base list

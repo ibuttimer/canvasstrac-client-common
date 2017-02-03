@@ -533,7 +533,8 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
   function linkQuestionsAndResults (resultArgs, surveyArgs) {
     if (resultArgs && surveyArgs) {
       // set list to a copy of the response list
-      var i, quesArray = [],
+      var i, 
+        quesArray = [], // array of question lists
         quesPath = SURVEYSCHEMA.SCHEMA.getModelName(SURVEYSCHEMA.IDs.QUESTIONS),
         resArray = miscUtilFactory.toArray(resultArgs.objId);
       
@@ -543,12 +544,12 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
           miscUtilFactory.toArray(survey.subObj).forEach(function (sub) {
             if (sub.path === quesPath) {
               // questions local work object
-              var quesList = questionFactory.getList(sub.objId);
+              var quesList = sub.factory.getList(sub.objId);
               if (quesList) {
                 quesArray.push(quesList);
                 
                 quesList.forEachInList(function (question) {
-                  if (questionFactory.showQuestionOptions(question.type)) {
+                  if (sub.factory.showQuestionOptions(question.type)) {
                     question.labels = question.options;
 
                     /* chart.js pie, polarArea & doughnut charts may be displayed using
@@ -578,7 +579,7 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
                     }
                     question.maxValue = 0;
                     
-                  } else if (questionFactory.showTextInput(question.type)) {
+                  } else if (sub.factory.showTextInput(question.type)) {
                     question.data = [];
                   }
                 });
@@ -682,6 +683,10 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
                   });
                 });
               }
+            });
+            
+            quesArray.forEach(function (qlist) {
+              qlist.exeChanged();  // objects in list have changed, trigger listeners 
             });
           }
         });

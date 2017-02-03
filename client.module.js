@@ -42,13 +42,16 @@ angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCordova'])
     };
   })())
   .constant('CHARTS', (function () {
+    // use the angular-chart directive names
     return {
-      PIE: 'pie',
-      POLAR: 'polar',
-      DOUGHNUT: 'doughnut',
-      BAR: 'bar',
-      RADAR: 'radar',
-      LINE: 'line'
+      PIE: 'chart-pie',
+      POLAR: 'chart-polar-area',
+      DOUGHNUT: 'chart-doughnut',
+      BAR: 'chart-bar',
+      HORZ_BAR: 'chart-horizontal-bar',
+      RADAR: 'chart-radar',
+      LINE: 'chart-line',
+      BUBBLE: 'chart-bubble'
     };
   })())
   .config(function () {
