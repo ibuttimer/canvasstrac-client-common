@@ -69,10 +69,10 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-electionFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'consoleService',
+electionFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'filterFactory', 'consoleService',
   'miscUtilFactory', 'SCHEMA_CONST', 'ELECTIONSCHEMA'];
 
-function electionFactory($resource, $injector, $filter, storeFactory, resourceFactory, consoleService, 
+function electionFactory($resource, $injector, $filter, storeFactory, resourceFactory, filterFactory, consoleService, 
   miscUtilFactory, SCHEMA_CONST, ELECTIONSCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
@@ -115,9 +115,10 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
    */
   function readRspObject (response, args) {
     if (!args) {
-      args = {
-        convert: readRspObjectValueConvert
-      };
+      args = {};
+    }
+    if (!args.convert) {
+      args.convert = readRspObjectValueConvert;
     }
     var election = ELECTIONSCHEMA.SCHEMA.readProperty(response, args);
 
@@ -197,14 +198,21 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
     if (!customFilter) {
       customFilter = filterFunction;
     }
-    var filter = resourceFactory.newResourceFilter(ELECTIONSCHEMA.SCHEMA, base);
+    var filter = filterFactory.newResourceFilter(ELECTIONSCHEMA.SCHEMA, base);
     filter.customFunction = customFilter;
     return filter;
   }
 
-  function getFilteredList(electionList, filter) {
+  /**
+   * Generate a filtered list
+   * @param {object} reslist    Election ResourceList object to filter
+   * @param {object} filter     filter to apply
+   * @param {function} xtraFilter Function to provide additional filtering
+   * @returns {Array} filtered list
+   */
+  function getFilteredList (reslist, filter, xtraFilter) {
     // election specific filter function
-    return $filter('filterElection')(electionList.list, electionList.filter.schema, filter);
+    return filterFactory.getFilteredList('filterElection', reslist, filter, xtraFilter);
   }
 
   function filterFunction(electionList, filter) {

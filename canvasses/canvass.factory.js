@@ -139,9 +139,10 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
    */
   function readRspObject (response, args) {
     if (!args) {
-      args = {
-        convert: readRspObjectValueConvert
-      };
+      args = {};
+    }
+    if (!args.convert) {
+      args.convert = readRspObjectValueConvert;
     }
     var canvass = CANVASSSCHEMA.SCHEMA.readProperty(response, args);
 
@@ -198,54 +199,34 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
 
   /**
    * Store a canvass response from the server
-   * @param {object}   response   Server response
+   * @param {object}   obj        Object to store
    * @param {object}   args       process arguments object
    *                              @see resourceFactory.storeServerRsp()
    * @return {object}   Canvass object
    */
-  function storeRspObject (canvass, args) {
+  function storeRspObject (obj, args) {
 
-    var subObjects, i, stdArgs, path, subDoc,
-      addrArgs, addrPath = CANVASSSCHEMA.SCHEMA.getModelName(CANVASSSCHEMA.IDs.ADDRESSES),
-      resultArgs, resultPath = CANVASSSCHEMA.SCHEMA.getModelName(CANVASSSCHEMA.IDs.RESULTS),
-      surveyArgs, surveyPath = CANVASSSCHEMA.SCHEMA.getModelName(CANVASSSCHEMA.IDs.SURVEY);
+    var subObjects, i, stdArgs,
+      getModelName = CANVASSSCHEMA.SCHEMA.getModelName,
+      addrArgs, addrPath = getModelName(CANVASSSCHEMA.IDs.ADDRESSES),
+      resultArgs, resultPath = getModelName(CANVASSSCHEMA.IDs.RESULTS),
+      surveyArgs, surveyPath = getModelName(CANVASSSCHEMA.IDs.SURVEY);
     
     // store sub objects first
     if (args.subObj) {
       subObjects = miscUtilFactory.toArray(args.subObj);
       for (i = 0; i < subObjects.length; ++i) {
         stdArgs = resourceFactory.standardiseArgs(subObjects[i]);
-        subObjects[i] = stdArgs;
 
-        path = stdArgs.path;
-        
-        if (path === addrPath) {
+        if (stdArgs.path === addrPath) {
           addrArgs = stdArgs;
-        } else if (path === resultPath) {
+        } else if (stdArgs.path === resultPath) {
           resultArgs = stdArgs;
-        } else if (path === surveyPath) {
+        } else if (stdArgs.path === surveyPath) {
           surveyArgs = stdArgs;
         }
         
-        if (stdArgs.path && stdArgs.type && stdArgs.factory) {
-          if (SCHEMA_CONST.FIELD_TYPES.IS_ARRAY(stdArgs.type)) {
-            // process a populated sub doc array
-            if (!canvass[path]) {
-              canvass[path] = [];
-            }
-            processPopulatedSubDoc(canvass[path], stdArgs.objId, stdArgs.factory, stdArgs.flags);
-          } else {
-            // process a populated sub doc
-            if (canvass[path]) {
-              /* remove path/schema info as not required as object is being passed
-                 (if its left in it'll mess up any sub objects) */
-              subDoc = stdArgs.factory.storeRspObject(canvass[path], 
-                         resourceFactory.removeSchemaPathTypeArgs(angular.copy(stdArgs)));
-              // set canvass field to objectId
-              canvass[path] = subDoc._id;
-            }
-          }
-        }
+        resourceFactory.storeSubDoc(obj, stdArgs, args);
       }
       
       // TODO come up with method of generalising the linking of fields
@@ -259,70 +240,14 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
       
     }
 
-    con.debug('Store canvass response: ' + canvass);
+    con.debug('Store canvass response: ' + obj);
 
-    var storeArgs = miscUtilFactory.copyProperties(args, {
+    // just basic storage args as subdocs have been processed above
+    var storeArgs = resourceFactory.copyBasicStorageArgs(args, {
         factory: $injector.get(factory.NAME)
-      }, ['objId', 'flags', 'storage', 'next']);
-
-    return resourceFactory.storeServerRsp(canvass, storeArgs);
-  }
-
-  /**
-   * Copy an array between objects.
-   * @param {object} from   Object to copy from
-   * @param {object} to     Object to copy to
-   * @param {string} name   Name fo array property
-   */
-  function readArray (from, to, name) {
-    if (from[name]) {
-      to[name] = from[name];
-    } else {
-      to[name] = [];
-    }
-    return to[name];
-  }
-  
-  /**
-   * Process a populated sub document array, by copying the data to a new factory object and 
-   * transforming the original to ObjectIds.
-   * @param {Array}         array   Populated array received from host
-   * @param {Array|string}  ids     Factory id/array of ids to copy data to
-   * @param {object}        factory Factory to use to generate new factory objects
-   * @param {number}        flags   storefactory flags
-   */
-  function processPopulatedSubDoc (array, ids, factory, flags) {
-    // jic no native implementation is available
-    miscUtilFactory.arrayPolyfill();
-
-    // set list to a copy of the response list
-    var arrayCopy = [],
-      readEntry;
-
-    if (factory.readRspObject) {
-      array.forEach(function (entry) {
-        readEntry = factory.readRspObject(entry);
-        arrayCopy.push(readEntry);
       });
-    } else {
-      arrayCopy = angular.copy(array);
-    }
 
-    miscUtilFactory.toArray(ids).forEach(function (id) {
-      var list = factory.getList(id);
-      if (!list && storeFactory.doCreateAny(flags)) {
-        list = factory.newList(id);
-      }
-      if (list) {
-        // set list to copy
-        list.setList(arrayCopy, flags);
-      }
-    });
-
-    // change objects in response to what host expects i.e. ObjectIds
-    for (var i = 0; i < array.length; ++i) {
-      array[i] = array[i]._id;
-    }
+    return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
   /**
@@ -615,7 +540,11 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
             };
 
             self.testQuestionId = function (ques) {
-              return (self.answer.question._id === ques._id);
+              var result = false;
+              if (self.answer.question) {
+                result = (self.answer.question._id === ques._id);
+              }
+              return result;
             };
             self.procData = function (ans) {
               var idx,

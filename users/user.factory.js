@@ -150,14 +150,12 @@ angular.module('ct.clientCommon')
           schema.forEachField(function(idx, fieldProp) {
             var filterVal = filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]];  // filter uses dialog properties
             if (filterVal) {
-              var userObj;
-              switch (fieldProp[SCHEMA_CONST.ID_PROP]) {
-                case PEOPLESCHEMA.ID_TAG:
-                  userObj = user.person;  // person embedded object
-                  break;
-                case ADDRSCHEMA.ID_TAG:
-                  userObj = user.person.address;  // address embedded object
-                  break;
+              var userObj = user,
+                path = fieldProp[SCHEMA_CONST.PATH_PROP];
+              if (path) {
+                for (var i = 0; !miscUtilFactory.isNullOrUndefined(userObj) && (i < path.length); ++i) {
+                  userObj = userObj[path[i]];
+                }
               }
               if (userObj) {
                 filterVal = filterVal.toLowerCase();
@@ -195,11 +193,11 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-userFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'compareFactory', 'miscUtilFactory',
-  'SCHEMA_CONST', 'USERSCHEMA', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'peopleFactory', 'addressFactory'];
+userFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory',
+  'SCHEMA_CONST', 'USERSCHEMA'];
 
-function userFactory($resource, $injector, $filter, storeFactory, resourceFactory, compareFactory, miscUtilFactory,
-  SCHEMA_CONST, USERSCHEMA, PEOPLESCHEMA, ADDRSCHEMA, peopleFactory, addressFactory) {
+function userFactory($resource, $injector, $filter, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory,
+  SCHEMA_CONST, USERSCHEMA) {
 
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
@@ -222,7 +220,7 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
     schema: USERSCHEMA.SCHEMA,
     addInterface: factory // add standard factory functions to this factory
   }),
-  comparinators = {};
+  comparinators = [];
   
   // make an array of comparinator objects based on sort indices
   USERSCHEMA.SORT_OPTIONS.forEach(function (option) {
@@ -296,9 +294,10 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
    */
 //  function readRspObject (response, args) {
 //    if (!args) {
-//      args = {
-//        convert: readRspObjectValueConvert
-//      };
+//      args = {};
+//    }
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
 //    }
 //    var user = USERSCHEMA.SCHEMA.readProperty(response, args);
 //
@@ -389,20 +388,21 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
     if (!customFilter) {
       customFilter = filterFunction;
     }
-    var filter = resourceFactory.newResourceFilter(USERSCHEMA.SCHEMA, base);
+    var filter = filterFactory.newResourceFilter(USERSCHEMA.SCHEMA, base);
     filter.customFunction = customFilter;
     return filter;
   }
-  
+
   /**
    * Generate a filtered list
-   * @param {object} reslist    user ResourceList object to filter
-   * @param {object} filter     filter to apply
-   * @returns {Array} filtered list
+   * @param {object}   reslist    User ResourceList object to filter
+   * @param {object}   filter     filter to apply
+   * @param {function} xtraFilter Function to provide additional filtering
+   * @returns {Array}    filtered list
    */
-  function getFilteredList(reslist, filter) {
+  function getFilteredList (reslist, filter, xtraFilter) {
     // user specific filter function
-    return $filter('filterUser')(reslist.list, reslist.filter.schema, filter);
+    return filterFactory.getFilteredList('filterUser', reslist, filter, xtraFilter);
   }
   
   /**
@@ -427,15 +427,32 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
       var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
       if (sortItem.idTag === USERSCHEMA.ID_TAG) {
         if (comparinators[sortItem.index]) {
-          sortFxn = comparinators[sortItem.index].compareFields;
+          sortFxn = getComparinator(sortItem.index);
         }
       }
     } // else basic index sort or not found
     return sortFxn;
   }
 
+  /**
+   * Compare user objects based on username
+   * @param   {object} a First user object
+   * @param   {object} b Second user object
+   * @returns {number} comparision result
+   */
   function compareUsername (a, b) {
     return compareFactory.compareStringFields(USERSCHEMA.SCHEMA, USERSCHEMA.USER_UNAME_IDX, a, b);
+  }
+
+  /**
+   * Wrapper function to return comparinator function
+   * @param   {number}   index Inhex of comparinator to use
+   * @returns {function} Function to pass to Array.sort()
+   */
+  function getComparinator (index) {
+    return function (a, b) {
+      return comparinators[index].compareFields(a, b);
+    };
   }
 }
 

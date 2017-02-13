@@ -21,6 +21,7 @@ function miscUtilFactory () {
     copyAndAddProperties: copyAndAddProperties,
     removeProperties: removeProperties,
     isEmpty: isEmpty,
+    isNullOrUndefined: isNullOrUndefined,
     toArray: toArray,
     arrayPolyfill: arrayPolyfill
   };
@@ -98,6 +99,15 @@ function miscUtilFactory () {
       }
     } 
     return empty;
+  }
+  
+  /**
+   * Check if an object is null or undefined
+   * @param   {object}  object object to test
+   * @returns {boolean} true if object is null or undefined
+   */
+  function isNullOrUndefined (object) {
+    return ((object === null) || (object === undefined));
   }
   
   /**

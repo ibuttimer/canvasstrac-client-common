@@ -38,7 +38,19 @@ angular.module('ct.clientCommon')
       typeObj = 'obj',
       typeObjId = 'oId',
       typeArray = '[]',
+      makeArrayType = function (type) {
+        return (type + typeArray);
+      },
+      typeStrArray = makeArrayType(typeStr),
+      typeDateArray = makeArrayType(typeDate),
+      typeBoolArray = makeArrayType(typeBool),
+      typeNumArray = makeArrayType(typeNum),
+      typeObjArray = makeArrayType(typeObj),
+      typeObjIdArray = makeArrayType(typeObjId),
       isType = function (mType, type) {
+        return (mType === type);
+      },
+      isPartType = function (mType, type) {
         return (mType.indexOf(type) >= 0);
       };
   
@@ -64,12 +76,12 @@ angular.module('ct.clientCommon')
         OBJECT: typeObj,
         OBJECTID: typeObjId,
         
-        STRING_ARRAY: typeStr + typeArray,
-        DATE_ARRAY: typeDate + typeArray,
-        BOOLEAN_ARRAY: typeBool + typeArray,
-        NUMBER_ARRAY: typeNum + typeArray,
-        OBJECT_ARRAY: typeObj + typeArray,
-        OBJECTID_ARRAY: typeObjId + typeArray,
+        STRING_ARRAY: typeStrArray,
+        DATE_ARRAY: typeDateArray,
+        BOOLEAN_ARRAY: typeBoolArray,
+        NUMBER_ARRAY: typeNumArray,
+        OBJECT_ARRAY: typeObjArray,
+        OBJECTID_ARRAY: typeObjIdArray,
         
         IS_TYPE: isType,
         IS_STRING: function (mType) {
@@ -91,7 +103,25 @@ angular.module('ct.clientCommon')
           return isType(mType, typeObjId);
         },
         IS_ARRAY: function (mType) {
-          return isType(mType, typeArray);
+          return isPartType(mType, typeArray);
+        },
+        IS_STRING_ARRAY: function (mType) {
+          return isType(mType, typeStrArray);
+        },
+        IS_DATE_ARRAY: function (mType) {
+          return isType(mType, typeDateArray);
+        },
+        IS_BOOLEAN_ARRAY: function (mType) {
+          return isType(mType, typeBoolArray);
+        },
+        IS_NUMBER_ARRAY: function (mType) {
+          return isType(mType, typeNumArray);
+        },
+        IS_OBJECT_ARRAY: function (mType) {
+          return isType(mType, typeObjArray);
+        },
+        IS_OBJECTID_ARRAY: function (mType) {
+          return isType(mType, typeObjIdArray);
         }
       },
       
@@ -545,11 +575,6 @@ function Schema (SCHEMA_CONST, name, modelProps, tag) {
    *    {boolean} schemaExcludeMode - schema id(s) are ids to exclude 
    *    {object} fromProp - object ({schema id}, {string}), specifying the property names to read from response for schema ids
    *    {object} convert  - function({schema id}, {value}) to convert read values
-
-   * @param {object} obj      - object to update, or if null/undefined a new object is created
-   * @param {object} modelId  - schema id/array of schema id field(s) to read, or if null/undefined all schema fields are read
-   * @param {object} fromProp - from object property name/array of from object property names to read
-   * @param {object} convert  - function({schema id}, {value}) to convert read values
    * @return updated/new object
    */
   self.readProperty = function (from, args) {

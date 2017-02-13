@@ -60,9 +60,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-peopleFactory.$inject = ['$resource', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'SCHEMA_CONST', 'PEOPLESCHEMA'];
+peopleFactory.$inject = ['$resource', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'SCHEMA_CONST', 'PEOPLESCHEMA'];
 
-function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, compareFactory, SCHEMA_CONST, PEOPLESCHEMA) {
+function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, SCHEMA_CONST, PEOPLESCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -114,7 +114,7 @@ function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, compa
   }
   
   function newFilter (base) {
-    return resourceFactory.newResourceFilter(PEOPLESCHEMA.SCHEMA, base);
+    return filterFactory.newResourceFilter(PEOPLESCHEMA.SCHEMA, base);
   }
   
   

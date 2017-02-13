@@ -132,6 +132,7 @@ function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFac
       showQuestionMultiSelOptions: showQuestionMultiSelOptions,
       showRankingNumber: showRankingNumber,
       showTextInput: showTextInput,
+      getSortOptions: getSortOptions,
       readRspObject: readRspObject,
       readQuestionRsp: readQuestionRsp,
       storeRspObject: storeRspObject
@@ -276,6 +277,12 @@ function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFac
    */
   function readRspObject(response, args) {
     // no conversions required by default
+//    if (!args) {
+//      args = {};
+//    }
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
+//    }
     var question = QUESTIONSCHEMA.SCHEMA.readProperty(response, args);
 
     con.debug('Read question rsp object: ' + question);
@@ -315,6 +322,10 @@ function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFac
 
   function storeId(id) {
     return QUESTIONSCHEMA.ID_TAG + id;
+  }
+  
+  function getSortOptions () {
+    return QUESTIONSCHEMA.SORT_OPTIONS;
   }
 
 }

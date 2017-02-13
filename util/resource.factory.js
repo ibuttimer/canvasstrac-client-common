@@ -5,13 +5,15 @@
 angular.module('ct.clientCommon')
 
   .constant('RESOURCE_CONST', (function () {
-    var schemaPathTYpe = ['path', 'type', 'schema', 'schemaId'],
-      stdArgs = schemaPathTYpe.concat(['objId', 'flags', 'subObj', 'customArgs']);
+    var schemaPathType = ['path', 'type', 'schema', 'schemaId'],
+      basicStore = ['objId', 'flags', 'storage', 'next'],
+      stdArgs = schemaPathType.concat(basicStore, ['subObj', 'customArgs']);
     return {
       STORE_LIST: 'list',
       STORE_OBJ: 'obj',
       
-      SCHEMA_PATH_TYPE_ARGS: schemaPathTYpe,
+      SCHEMA_PATH_TYPE_ARGS: schemaPathType,
+      BASIC_STORE_ARGS: basicStore,
       STD_ARGS: stdArgs
     };
   })())
@@ -37,10 +39,13 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     getResources: getResources,
     getCount: getCount,
     storeServerRsp: storeServerRsp,
+    storeSubDoc: storeSubDoc,
     standardiseArgs: standardiseArgs,
     standardisePathTypeArgs: standardisePathTypeArgs,
     copyPathTypeArgs: copyPathTypeArgs,
     removeSchemaPathTypeArgs: removeSchemaPathTypeArgs,
+    copyBasicStorageArgs: copyBasicStorageArgs,
+    removeBasicStorageArgs: removeBasicStorageArgs,
     getServerRsp: getServerRsp,
     
     registerStandardFactory: registerStandardFactory,
@@ -55,7 +60,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     setFilter: setFilter,
     setPager: setPager,
     applyFilter: applyFilter,
-    newResourceFilter: newResourceFilter,
+
     getSortFunction: getSortFunction,
     sortResourceList: sortResourceList,
     isDescendingSortOrder: isDescendingSortOrder,
@@ -150,20 +155,17 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    */
   function storeServerRsp (response, args) {
 
-    var stdArgs = standardiseArgs(args),
+    var stdArgs = standardiseArgs(args, args.parent),
       factory = stdArgs.factory,
       idArray = stdArgs.objId,
       resp,
       asList, i,
-      toSave = response;
+      toSave = getToSave(response, stdArgs).toSave;
 
-    if (stdArgs.path) {
-      // drill down to get obj to save
-      var splits = stdArgs.path.split('.');
-      splits.forEach(function (split) {
-        if (toSave) {
-          toSave = toSave[split];
-        }
+    // store sub objects first
+    if (args.subObj) {
+      miscUtilFactory.toArray(args.subObj).forEach(function (subObj) {
+        storeSubDoc(response, subObj, stdArgs);
       });
     }
 
@@ -175,41 +177,119 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
       asList = Array.isArray(toSave);
     }
 
-    if (asList) {
-      // process a query response
-      if (toSave) {
-        resp = factory.setList(idArray[0], toSave, stdArgs.flags);
+    resp = toSave;  // default result is raw object
+
+    if (idArray.length) {
+      if (asList) {
+        // process a query response
+        if (toSave) {
+          resp = factory.setList(idArray[0], toSave, stdArgs.flags);
+        } else {
+          resp = factory.initList(idArray[0], stdArgs.flags);
+        }
       } else {
-        resp = factory.initList(idArray[0], stdArgs.flags);
+        // process a get response
+        if (toSave) {
+          resp = factory.setObj(idArray[0], toSave, stdArgs.flags);
+        } else {
+          resp = factory.initObj(idArray[0], stdArgs.flags);
+        }
       }
       // if multiple objId's secondary ids are set to copies
       for (i = 1; i < idArray.length; ++i) {
-        factory.duplicateList(idArray[i], idArray[0], storeFactory.DUPLICATE_OR_EXIST);
+        if (asList) {
+          factory.duplicateList(idArray[i], idArray[0], storeFactory.EXISTING, {
+            list: true  // just duplicate list
+          });
+        } else {
+          factory.duplicateObj(idArray[i], idArray[0], storeFactory.OVERWRITE);
+        }
       }
-    } else {
-      // process a get response
-      if (toSave) {
-        resp = factory.setObj(idArray[0], toSave, stdArgs.flags);
-      } else {
-        resp = factory.initObj(idArray[0], stdArgs.flags);
-      }
-      // if multiple objId's secondary ids are set to copies
-      for (i = 1; i < idArray.length; ++i) {
-        factory.duplicateObj(idArray[i], idArray[0], storeFactory.DUPLICATE_OR_EXIST);
-      }
-    }
-    
-    if (stdArgs.subObj) {
-      // recursive call to save sub objects
-      var subObjArray = miscUtilFactory.toArray(stdArgs.subObj);
-      subObjArray.forEach(function (subObj) {
-        storeServerRsp(response, subObj);
-      });
     }
 
     if (stdArgs.next) {
       stdArgs.next(resp);
     }
+    return resp;
+  }
+
+
+  /**
+   * Get the object to save based on the provided path
+   * @param {object} response Response object
+   * @param {string} path     Path to required object
+   * @return {object} object to save
+   */
+  function getToSave (response, args) {
+    var paths = [],
+      toSave = response,
+      parent, property;
+
+    if (args.path) {
+      paths.push(args.path)
+    }
+    for (parent = args.parent; parent && parent.path; parent = parent.parent) {
+      paths.unshift(parent.path);
+    }
+    
+    // drill down to get item to save
+    paths.forEach(function (path) {
+      if (toSave) {
+        parent = toSave;
+        property = path;
+        toSave = parent[property];
+      }
+    });
+    return { toSave: toSave,    // object to save
+              parent: parent,   // parent object
+              property: property }; // parent object property
+  }
+
+  /**
+   * Process a populated sub document array, by copying the data to a new factory object and 
+   * transforming the original to ObjectIds.
+   * @param {Array}         array   Populated array received from host
+   * @param {Array|string}  ids     Factory id/array of ids to copy data to
+   * @param {object}        factory Factory to use to generate new factory objects
+   * @param {number}        flags   storefactory flags
+   */
+  function storeSubDoc (response, args, parent) {
+    var stdArgs = standardiseArgs(args, parent),
+      factory = stdArgs.factory,
+      resp,
+      toSaveInfo = getToSave(response, stdArgs  /*.path*/),
+      toSave = toSaveInfo.toSave;
+
+    if (factory.readRspObject) {
+      // use the appropriate function to read the object(s)
+      if (Array.isArray(toSave)) {
+        for (let i = 0; i < toSave.length; ++i) {
+          factory.readRspObject(toSave[i], {
+            obj: toSave[i]   // inplace update
+          });
+        }
+      } else {
+        factory.readRspObject(toSave, {
+          obj: toSave   // inplace update
+        });
+      }
+    }
+
+    // store subdoc, resp is ResourceList or object
+    resp = storeServerRsp(response, stdArgs);
+
+    // update response with expected response type i.e. ObjectIds
+    if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID(stdArgs.type)) {
+      // field is objectId, so was saved as object
+      toSaveInfo.parent[toSaveInfo.property] = resp._id;
+
+    } else if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID_ARRAY(stdArgs.type)) {
+      // field is an array of objectId
+      for (let i = 0; i < toSave.length; ++i) {
+        toSave[i] = resp.list[i]._id;
+      }
+    }
+
     return resp;
   }
 
@@ -219,7 +299,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @see storeServerRsp()
    * @return {object}       arguments object
    */
-  function standardiseArgs (args) {
+  function standardiseArgs (args, parent) {
 
     var stdArgs = angular.copy(args);
 
@@ -233,6 +313,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
       stdArgs.objId = [];
     }
     stdArgs.flags = (args.flags || storeFactory.NOFLAG);
+    stdArgs.parent = parent;
 
     copySchemaPathTypeArgs(
       standardisePathTypeArgs(copySchemaPathTypeArgs(args)), stdArgs);
@@ -240,10 +321,10 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     if (stdArgs.subObj) {
       if (Array.isArray(stdArgs.subObj)) {
         for (var i = 0; i < stdArgs.subObj.length; ++i) {
-          stdArgs.subObj[i] = standardiseArgs(stdArgs.subObj[i]);
+          stdArgs.subObj[i] = standardiseArgs(stdArgs.subObj[i], stdArgs);
         }
       } else {
-        stdArgs.subObj = [standardiseArgs(stdArgs.subObj)];
+        stdArgs.subObj = [standardiseArgs(stdArgs.subObj, stdArgs)];
       }
     }
 
@@ -312,16 +393,26 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
   /**
    * Copy the standard schema/path/type arguments
+   * @param {Array}  list list of properties to copy
+   * @param {object} args process arguments object to copy from
+   * @param {object} to   process arguments object to copy to
+   * @return {object} arguments object
+   */
+  function copyArgs (list, args, to) {
+    if (!to) {
+      to = {};
+    }
+    return miscUtilFactory.copyProperties(args, to, list);
+  }
+
+  /**
+   * Copy the standard schema/path/type arguments
    * @param {object}       args     process arguments object to copy from
    * @param {object}       to       process arguments object to copy to
    * @return {object}       arguments object
    */
   function copySchemaPathTypeArgs (args, to) {
-    if (!to) {
-      to = {};
-    }
-    return miscUtilFactory.copyProperties(args, to, 
-                          RESOURCE_CONST.SCHEMA_PATH_TYPE_ARGS);
+    return copyArgs(RESOURCE_CONST.SCHEMA_PATH_TYPE_ARGS, args, to);
   }
 
   /**
@@ -330,10 +421,30 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @return {object}       arguments object
    */
   function removeSchemaPathTypeArgs (args) {
-    return miscUtilFactory.removeProperties(args,
-                          RESOURCE_CONST.SCHEMA_PATH_TYPE_ARGS);
+    return miscUtilFactory.removeProperties(args, RESOURCE_CONST.SCHEMA_PATH_TYPE_ARGS);
   }
 
+  /**
+   * Copy the basic storage arguments
+   * @param {object}       args     process arguments object to copy from
+   * @param {object}       to       process arguments object to copy to
+   * @return {object}       arguments object
+   */
+  function copyBasicStorageArgs (args, to) {
+    return copyArgs(RESOURCE_CONST.BASIC_STORE_ARGS, args, to);
+  }
+
+  /**
+   * Remove the standard schema/path/type arguments
+   * @param {object}       args     process arguments object to remove from
+   * @return {object}       arguments object
+   */
+  function removeBasicStorageArgs (args) {
+    return miscUtilFactory.removeProperties(args, RESOURCE_CONST.BASIC_STORE_ARGS);
+  }
+
+  
+  
   /**
    * Get a stored response from the server
    * @param {object}       args     process arguments object with following properties:
@@ -423,25 +534,74 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     if (typeof listArgs.factory === 'string') {
       newList.factory = $injector.get(listArgs.factory);
     }
-    
+
+    newList.sortOptions = newList.factory.getSortOptions();
+    newList.sortBy = newList.sortOptions[0];
+
     return newList;
   }
   
   /**
    * Create a new ResourceList object by duplicating an existing object
-   * @param {string} storeId      Id string to use in storeFactory
-   * @param {string} srcStoreId   storeFactory Id string of object to duplicate
-   * @param {number} flags  storefactory flags
+   * @param {string} id         Id string fir new ResourceList
+   * @param {string} storeId    Id string to use in storeFactory
+   * @param {string} srcStoreId storeFactory Id string of object to duplicate
+   * @param {number} flags      storefactory flags
+   * @param {object} args       Optional arguemnts specifying fields to duplicate when used with EXISTING
+   *                            title: true - duplicate title
+   *                            list: true - duplicate list and apply filter
+   *                            filter: true - duplicate filter
+   *                            pager: true - duplicate pager
+   *                            sort: true - duplicate sortby
+   *                            onchange: true - duplicate onchange
    */
-  function duplicateList(storeId, srcStoreId, flags) {
-    return storeFactory.duplicateObj(storeId, srcStoreId, flags);
+  function duplicateList (id, storeId, srcStoreId, flags, args) {
+    if (typeof flags === 'object') {
+      args = flags;
+      flags = storeFactory.NOFLAG;
+    }
+    var presetCb,
+      list;
+    if (args) {
+      presetCb = function (destination, source) {
+        return duplicateListFields (args, destination, source);
+      };
+    }
+    list = storeFactory.duplicateObj(storeId, srcStoreId, flags, presetCb);
+    list.id = id;
+    return list;
+  }
+
+  /**
+   * Duplicate specific ResourceList fields
+   * @param {object} args        Object specifying fields to duplicate
+   * @param {object} destination ResourceList to update
+   * @param {object} source      ResourceList to duplicate from
+   */
+  function duplicateListFields (args, destination, source) {
+    if (source && destination) { // need something to duplicate
+      ['title', 'filter', 'pager', 'onchange'].forEach(function (prop) {
+        if (args[prop]) {
+          destination[prop] = angular.copy(source[prop]);
+        }
+      });
+      if (args.sort) {
+        destination.sortOptions = angular.copy(source.sortOptions);
+        destination.sortBy = angular.copy(source.sortBy);
+      }
+      if (args.list) {
+        destination.setList(source.list, 
+                      (storeFactory.COPY_SET | storeFactory.APPLY_FILTER));
+        destination.selCount = source.selCount;
+      }
+    }
   }
 
   /**
    * Delete a ResourceList object
    * @param {string}   storeId Id string to use in storeFactory
    * @param {number}   flags storeFactory flags; the following are used
-   *                         - COPY: to return copy of list
+   *                         - COPY_GET: to return copy of list
    *                         - other flags ignored
    * @returns {object|boolean} Copy of deleted ResourceList object, or true if successful
    */
@@ -453,15 +613,12 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * Set the base list for a ResourceList object
    * @param {string}   storeId Id string to use in storeFactory
    * @param {Array}    list    base list to use
-   * @param   {number}   flags   storefactoryFlags
-   * @param   {function} newList Optional list creator function
+   * @param {number}   flags   storefactoryFlags
+   * @param {function} newList Optional list creator function
    * @returns {object} ResourceList object
    */
   function setResourceList (storeId, list, flags, newList) {
-    var resourceList = getResourceList(storeId);
-    if (!resourceList && storeFactory.doCreateAny(flags)) {
-      resourceList = newList(flags);
-    }
+    var resourceList = getResourceList(storeId, flags, newList);
     if (resourceList) {
       resourceList.setList(list, flags);
     }
@@ -471,11 +628,16 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   /**
    * Get an existing ResourceList object
    * @param {string}   storeId Id string to use in storeFactory
-   * @param   {number}   flags   storefactoryFlags
+   * @param {number}   flags   storefactoryFlags
+   * @param {function} newList Optional list creator function
    * @returns {object} ResourceList object
    */
-  function getResourceList(storeId, flags) {
-    return storeFactory.getObj(storeId, flags);
+  function getResourceList (storeId, flags, newList) {
+    var resourceList = storeFactory.getObj(storeId, flags);
+    if (!resourceList && storeFactory.doCreateAny(flags)) {
+      resourceList = newList(flags);
+    }
+    return resourceList;
   }
 
   /**
@@ -485,7 +647,6 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @returns {object} ResourceList object
    */
   function initResourceList (storeId, flags) {
-    // include only required fields
     return setResourceList(storeId, [], flags);
   }
 
@@ -549,16 +710,6 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     return getResourceList(storeId, flags);
   }
 
-  /**
-   * Create a new ResourceFilter object
-   * @param   {object} schema Schema object for which filter will be used
-   * @param   {object} base   Base object to filter by
-   * @returns {object} new ResourceFilter object
-   */
-  function newResourceFilter (schema, base) {
-    return $injector.instantiate(ResourceFilter, {schema: schema, base: base});
-  }
-  
   /**
    * Get the sort function
    * @param   {object} sortOptions  List of possible sort option
@@ -700,9 +851,11 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @param {string} id     Factory id of new object
    * @param {string} srcId  Factory id of object to duplicate
    * @param {number} flags  storefactory flags
+   * @param   {function} presetCb Optional function to be called before object stored
+   * @returns {object}   New or existing object
    */
-  StandardFactory.prototype.duplicateObj = function (id, srcId, flags) {
-    return storeFactory.duplicateObj(this.storeId(id), this.storeId(srcId), flags);
+  StandardFactory.prototype.duplicateObj = function (id, srcId, flags, presetCb) {
+    return storeFactory.duplicateObj(this.storeId(id), this.storeId(srcId), flags, presetCb);
   };
   
   /**
@@ -769,13 +922,15 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   
   /**
    * Create a new ResourceList object by duplicating an existing object
-   * @param {string} id     Factory id of new object
-   * @param {string} srcId  Factory id of object to duplicate
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass result ResourceList object
+   * @param {string} id    Factory id of new object
+   * @param {string} srcId Factory id of object to duplicate
+   * @param {number} flags storefactory flags
+   * @param {object} args  Optional arguemnts specifying fields to duplicate when used with EXISTING
+   * @see resourceFactory.duplicateList()
+   * @returns {object} ResourceList object
    */
-  StandardFactory.prototype.duplicateList = function (id, srcId, flags) {
-    return duplicateList(this.storeId(id), this.storeId(srcId), flags);
+  StandardFactory.prototype.duplicateList = function (id, srcId, flags, args) {
+    return duplicateList(id, this.storeId(id), this.storeId(srcId), flags, args);
   };
 
   
@@ -783,7 +938,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * Delete a ResourceList object
    * @param {string}         id    Id string to use
    * @param {number}         flags storeFactory flags; the following are used
-   *                               - COPY: to return copy of list
+   *                               - COPY_GET: to return copy of list
    *                               - other flags ignored
    * @returns {object|boolean} Copy of deleted ResourceList object, or true if successful
    */
@@ -815,7 +970,12 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @returns {object} ResourceList object
    */
   StandardFactory.prototype.getList = function (id, flags) {
-    return getResourceList(this.storeId(id), flags);
+    return getResourceList(this.storeId(id), flags,
+            function (flags) {
+              return this.newList(id, { 
+                id: id, flags: flags }
+              );
+            });
   };
   
   /**
@@ -864,15 +1024,16 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * Set the base list
    * @param {Array}  list  base list to use
    * @param {number} flags storeFactory flags; the following are used
-   *                       - COPY: to set list to a copy of the argument
+   *                       - COPY_SET: to set list to a copy of the argument
    *                       - APPLY_FILTER: to immediately filter list
    *                       - other flags ignored
+   * @returns {object} ResourceList object
    */
   function setListForResourceList (resList, list, flags) {
     var toSet = list;
     if (toSet) {
       toSet = miscUtilFactory.toArray(list);
-      if (storeFactory.doCopy(flags)) {
+      if (storeFactory.doCopySet(flags)) {
         toSet = angular.copy(toSet);
       }
     }
@@ -889,6 +1050,8 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
       resList.applyFilter();
     }
     resList.exeChanged();
+
+    return resList;
   }
 
   /**
@@ -914,7 +1077,8 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     this.filter = {};         // filter
     this.pager = undefined;   // pager
     this.selCount = 0;        // selected count
-    this.sortBy = undefined;  // sort by option is filled in appropriate controller
+    this.sortOptions = undefined;  // list of sort valid options
+    this.sortBy = undefined;  // sort by option
     this.onChange = [];       // functions to be executed when contents are changed
   }
 
@@ -922,19 +1086,20 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * Set the base list
    * @param {Array}  list  base list to use
    * @param {number} flags storeFactory flags; the following are used
-   *                       - COPY: to set list to a copy of the argument
+   *                       - COPY_SET: to set list to a copy of the argument
    *                       - APPLY_FILTER: to immediately filter list
    *                       - other flags ignored
+   * @returns {object} ResourceList object
    */
   ResourceList.prototype.setList = function (list, flags) {
-    setListForResourceList(this, list, flags);
+    return setListForResourceList(this, list, flags);
   };
 
   /**
    * Add an entry to the base list
    * @param {object} entry Entry to add to list
    * @param {number} flags storeFactory flags; the following are used
-   *                       - COPY: to add a copy of the entry argument to the list
+   *                       - COPY_SET: to add a copy of the entry argument to the list
    *                       - APPLY_FILTER: to immediately filter list
    *                       - other flags ignored
    */
@@ -942,7 +1107,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     if (!this.list) {
       this.setList([entry], flags);
     } else {
-      if (storeFactory.doCopy(flags)) {
+      if (storeFactory.doCopySet(flags)) {
         entry = angular.copy(entry);
       }
 
@@ -1053,6 +1218,35 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   };
 
   /**
+   * Set an entry in this objects list
+   * @param {number}   index     index of entry to return
+   * @param {object}   value     value of entry to set
+   */
+  ResourceList.prototype.setInList = function (index, value) {
+    var length = this.list.length >>> 0;
+
+    if ((index < 0) || (index >= length)) {
+      throw new RangeError('index out of range');
+    }
+    return (this.list[index] = value);
+  };
+
+  /**
+   * Update an entry in this objects list with the properties of value
+   * @param {number}   index     index of entry to return
+   * @param {object}   value     value of entry to set
+   */
+  ResourceList.prototype.updateInList = function (index, value) {
+    var length = this.list.length >>> 0;
+
+    if ((index < 0) || (index >= length)) {
+      throw new RangeError('index out of range');
+    }
+    miscUtilFactory.copyProperties(value, this.list[index]);
+    return this.list[index];
+  };
+
+  /**
    * Apply a filter to the list, and update the associated pager if applicable
    * @param   {object} filter filter to use or preset filter used if undefined
    * @returns {object} this object to facilitate chaining
@@ -1095,7 +1289,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @returns {Array}    sorted list
    */
   ResourceList.prototype.sort = function (getSortFunction, sortOptions, sortByValue) {
-    return resourceFactory.sortResourceList(this, getSortFunction, sortOptions, sortByValue);
+    return sortResourceList(this, getSortFunction, sortOptions, sortByValue);
   };
 
   /**
@@ -1112,63 +1306,12 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     ', filter: ' + this.filter.toString() +
     ', pager: ' + this.pager +
     ', selCount: ' + this.selCount +
+    ', sortOptions: ' + this.sortOptions.toString() +
     ', sortBy: ' + this.sortBy + '}';
-  };
-
-
-  /**
-   * Filter for a ResourceList object
-   * @param   {object} schema Schema object for which filter will be used
-   * @param   {object} base   Base object to filter by
-   */
-  function ResourceFilter (SCHEMA_CONST, schema, base) {
-    this.schema = schema; // keep a ref to field array
-    this.filterBy = {};
-
-    if (base) {
-      // filter utilises dialog fields
-      var newfilterBy = {};
-      this.schema.forEachField(function (idx, fieldProp) {
-        var filterVal = base[fieldProp[SCHEMA_CONST.DIALOG_PROP]];
-        if (filterVal) {
-          newfilterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]] = filterVal;
-        }
-      });
-      this.filterBy = newfilterBy;
-    }
-  }
-
-  /**
-   * toString method for a filter for a ResourceList object
-   * @param   {string} prefix Prefix dtring
-   * @returns {string} string representation
-   */
-  ResourceFilter.prototype.toString = function (prefix) {
-    var str,
-      filterBy = this.filterBy;
-    if (!prefix) {
-      str = '';
-    } else {
-      str = prefix;
-    }
-    this.schema.forEachField(function (idx, fieldProp) {
-      var filterVal = filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]];
-      if (filterVal) {
-        if (str.length > 0) {
-          str += '\n';
-        }
-        str += fieldProp[SCHEMA_CONST.MODEL_PROP] + ': ' + filterVal;
-      }
-    });
-    if (str.length === 0) {
-      str = 'No filter';
-    }
-    return str;
   };
 
   // need the return here so that object prototype functions are added
   return factory;
-
 }
 
 

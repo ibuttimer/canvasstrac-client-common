@@ -107,6 +107,12 @@ function surveyFactory($resource, $injector, baseURL, SURVEYSCHEMA, storeFactory
    */
   function readRspObject(response, args) {
     // no conversions required by default
+//    if (!args) {
+//      args = {};
+//    }
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
+//    }
     var survey = SURVEYSCHEMA.SCHEMA.readProperty(response, args);
 
     con.debug('Read survey rsp object: ' + survey);
@@ -137,10 +143,7 @@ function surveyFactory($resource, $injector, baseURL, SURVEYSCHEMA, storeFactory
    * @return {object}  survey ResourceList object
    */
   function storeRspObject (obj, args) {
-    var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
-      factory: $injector.get(factory.NAME)
-    });
-    return resourceFactory.storeServerRsp(obj, storeArgs);
+    return resourceFactory.storeServerRsp(obj, args);
   }
 
 

@@ -126,9 +126,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-addressFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'SCHEMA_CONST', 'ADDRSCHEMA'];
+addressFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'SCHEMA_CONST', 'ADDRSCHEMA'];
 
-function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, resourceFactory, compareFactory, SCHEMA_CONST, ADDRSCHEMA) {
+function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, SCHEMA_CONST, ADDRSCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -225,15 +225,21 @@ function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, r
     if (!customFilter) {
       customFilter = filterFunction;
     }
-    var filter = resourceFactory.newResourceFilter(ADDRSCHEMA.SCHEMA, base);
+    var filter = filterFactory.newResourceFilter(ADDRSCHEMA.SCHEMA, base);
     filter.customFunction = customFilter;
     return filter;
   }
   
-  
-  function getFilteredList (addrList, filter) {
+  /**
+   * Generate a filtered list
+   * @param {object}   reslist    Address ResourceList object to filter
+   * @param {object}   filter     filter to apply
+   * @param {function} xtraFilter Function to provide additional filtering
+   * @returns {Array}    filtered list
+   */
+  function getFilteredList (reslist, filter, xtraFilter) {
     // address specific filter function
-    return $filter('filterAddr')(addrList.list, addrList.filter.schema, filter);
+    return filterFactory.getFilteredList('filterAddr', reslist, filter, xtraFilter);
   }
   
   function filterFunction (addrList, filter) {

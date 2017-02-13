@@ -23,12 +23,24 @@ function storeFactory(consoleService) {
     con = consoleService.getLogger('storeFactory'),
     NOFLAG = 0,
     CREATE = 0x01,      // create new object if doesn't exist
-    COPY = 0x02,        // return a copy of object
-    CREATE_INIT = 0x04, // create new object if doesn't exist, or init it if it does
-    APPLY_FILTER = 0x08,// apply filter (after filter or list set)
-    DUPLICATE_OR_EXIST = 0x10,// create a duplicate or return existing
-    EMPTY_OBJ = 0x20,   // create an empty object ignoring any constructor
-    CREATE_COPY = (CREATE | COPY),
+    COPY_SET = 0x02,    // set using copy of object
+    COPY_GET = 0x04,    // return a copy of object
+    CREATE_INIT = 0x08, // create new object if doesn't exist, or init it if it does
+    APPLY_FILTER = 0x10,// apply filter (after filter or list set)
+    EXISTING = 0x20,    // return existing if it exists
+    OVERWRITE = 0x40,   // overwrite existing if it exists
+    EMPTY_OBJ = 0x80,   // create an empty object ignoring any constructor
+    nameList = [
+      'CREATE',
+      'COPY_SET',
+      'COPY_GET',
+      'CREATE_INIT',
+      'APPLY_FILTER',
+      'EXISTING',
+      'OVERWRITE',
+      'EMPTY_OBJ'
+    ],
+    CREATE_COPY_SET = (CREATE | COPY_SET),
     CREATE_ANY = (CREATE | CREATE_INIT);
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
@@ -40,17 +52,20 @@ function storeFactory(consoleService) {
     getObj: getObj,
     NOFLAG: NOFLAG,
     CREATE: CREATE,
-    COPY: COPY,
+    COPY_SET: COPY_SET,
+    COPY_GET: COPY_GET,
     APPLY_FILTER: APPLY_FILTER,
-    DUPLICATE_OR_EXIST: DUPLICATE_OR_EXIST,
+    EXISTING: EXISTING,
+    OVERWRITE: OVERWRITE,
     EMPTY_OBJ: EMPTY_OBJ,
     CREATE_INIT: CREATE_INIT,
-    CREATE_COPY: CREATE_COPY,
+    CREATE_COPY_SET: CREATE_COPY_SET,
     CREATE_ANY: CREATE_ANY,
     doCreate: doCreate,
     doCreateInit: doCreateInit,
     doCreateAny: doCreateAny,
-    doCopy: doCopy,
+    doCopySet: doCopySet,
+    doCopyGet: doCopyGet,
     doApplyFilter: doApplyFilter,
     maskFlag: maskFlag
   };
@@ -68,7 +83,7 @@ function storeFactory(consoleService) {
     if (!flags) {
       flags = factory.CREATE;
     }
-    con.debug('storeFactory: "' + id + '" ' + flags);
+    con.debug('storeFactory[' + id + ']: new ' + flagsToString(flags));
     if (!store[id] || doCreateInit(flags)) {
       if (doEmptyObj(flags)) {
         store[id] = {};
@@ -88,19 +103,51 @@ function storeFactory(consoleService) {
     return getObj(id, flags);
   }
   
-  function duplicateObj (id, srcId, flags) {
-    var copy = getCopy(srcId, COPY);
+  /**
+   * Create a duplicate of an existing object
+   * @throws {Error} If object exists and EXISTING flag not set, or source doesn't exist
+   * @param   {string}   id       Id of new object to create
+   * @param   {string}   srcId    Id of source object
+   * @param   {number}   flags    Optional flags
+   * @param   {function} presetCb Optional function to be called before object stored
+   * @returns {object}   New or existing object
+   */
+  function duplicateObj (id, srcId, flags, presetCb) {
+    if (typeof flags === 'function') {
+      presetCb = flags;
+      flags = NOFLAG;
+    }
+    con.debug('storeFactory[' + id + ']: duplicate ' + flagsToString(flags));
+    var copy = getCopy(srcId, COPY_GET);
     if (copy) {
-      if (!store[id] || doDuplicateOrExist(flags)) {
+      if (!store[id] || doOverwrite(flags)) {
+        if (presetCb) {
+          presetCb(copy);    // apply callback to new object
+        }
         store[id] = copy;
       } else {
-        throw new Error('Object with id "' + id + '" already exists in store.');
+        if (doExisting(flags)) {
+          if (presetCb) {
+            presetCb(store[id], store[srcId]);  // apply callback to existing object
+          }
+        } else {
+          throw new Error('Object with id "' + id + '" already exists in store.');
+        }
       }
+    } else {
+      throw new Error('Source object with id "' + srcId + '" does not exist in store.');
     }
     return getObj(id, flags);
   }
   
+  /**
+   * Delete an object from the store
+   * @param   {string}         id    Id of object to delete
+   * @param   {number}         flags Optional flags
+   * @returns {object|boolean} Copy of deleted object (if COPY_GET flag) or true/false
+   */
   function delObj (id, flags) {
+    con.debug('storeFactory[' + id + ']: del ' + flagsToString(flags));
     var result = false;
     if (store[id]) {
       result = getCopy(id, flags);
@@ -114,7 +161,7 @@ function storeFactory(consoleService) {
 
   function getCopy (id, flags) {
     var copy;
-    if (doCopy(flags)) {
+    if (doCopyGet(flags)) {
       if (store[id]) {
         copy = angular.copy(store[id]);
       }
@@ -123,6 +170,7 @@ function storeFactory(consoleService) {
   }
 
   function setObj (id, data, flags, constructor) {
+    con.debug('storeFactory[' + id + ']: set ' + flagsToString(flags));
     var obj = store[id];
     if (!obj && doCreateAny(flags)) {
       obj = newObj(id, constructor, maskFlag(flags, CREATE_ANY));
@@ -136,49 +184,82 @@ function storeFactory(consoleService) {
   }
   
   function getObj (id, flags) {
+    con.debug('storeFactory[' + id + ']: get ' + flagsToString(flags));
     var obj = getCopy(id, flags);
     if (!obj) {
       obj = store[id];
     }
     return obj;
   }
-  
+
   function testFlag (flags, test) {
     flags = flags || NOFLAG;
     return ((flags & test) !== 0);
   }
-  
+
   function maskFlag (flags, mask) {
     flags = flags || NOFLAG;
     return (flags & mask);
   }
-  
+
   function doCreate (flags) {
     return testFlag(flags, CREATE);
   }
-  
+
   function doCreateInit (flags) {
     return testFlag(flags, CREATE_INIT);
   }
-  
+
   function doCreateAny (flags) {
     return testFlag(flags, CREATE_ANY);
   }
-  
-  function doCopy (flags) {
-    return testFlag(flags, COPY);
+
+  function doCopySet (flags) {
+    return testFlag(flags, COPY_SET);
   }
-  
+
+  function doCopyGet (flags) {
+    return testFlag(flags, COPY_GET);
+  }
+
   function doApplyFilter (flags) {
     return testFlag(flags, APPLY_FILTER);
   }
-  
-  function doDuplicateOrExist (flags) {
-    return testFlag(flags, DUPLICATE_OR_EXIST);
+
+  function doExisting (flags) {
+    return testFlag(flags, EXISTING);
   }
-  
+
+  function doOverwrite (flags) {
+    return testFlag(flags, OVERWRITE);
+  }
+
   function doEmptyObj (flags) {
     return testFlag(flags, EMPTY_OBJ);
+  }
+
+  function flagsToString (flags) {
+    var str = '',
+      done,
+      mask,
+      idx;
+    if (typeof flags === 'number') {
+      for (done = idx = 0, mask = 0x01; 
+            (flags !== done) && (idx < 32); 
+              mask <<= 1, ++idx) {
+        if ((flags & mask) == mask) {
+          if (nameList[idx]) {
+            str += nameList[idx] + ' ';
+          } else {
+            str += 'x' + mask.toString(16) + ' ';
+          }
+          done |= mask;
+        }
+      }
+    } else {
+      str = flags;
+    }
+    return str;
   }
 }
 

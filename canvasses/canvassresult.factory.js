@@ -92,9 +92,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassResultFactory.$inject = ['$resource', '$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'miscUtilFactory', 'surveyFactory',
+canvassResultFactory.$inject = ['$resource', '$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory',
   'addressFactory', 'electionFactory', 'userFactory', 'SCHEMA_CONST', 'CANVASSRES_SCHEMA', 'consoleService'];
-function canvassResultFactory($resource, $injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, miscUtilFactory, surveyFactory,
+function canvassResultFactory($resource, $injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, surveyFactory,
   addressFactory, electionFactory, userFactory, SCHEMA_CONST, CANVASSRES_SCHEMA, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
@@ -150,9 +150,10 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
    */
   function readRspObject (response, args) {
     if (!args) {
-      args = {
-        convert: readRspObjectValueConvert
-      };
+      args = {};
+    }
+    if (!args.convert) {
+      args.convert = readRspObjectValueConvert;
     }
     var object = CANVASSRES_SCHEMA.SCHEMA.readProperty(response, args);
 
@@ -219,9 +220,6 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
    */
   function storeRspObject(canvassRes, args) {
 
-    var flags = (args.flags || storeFactory.NOFLAG),
-      array;
-
     con.debug('Store canvass result response: ' + canvassRes);
 
     var storeArgs = miscUtilFactory.copyProperties(args, {
@@ -231,21 +229,6 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
     return resourceFactory.storeServerRsp(canvassRes, storeArgs);
   }
 
-  /**
-   * Copy an array between objects.
-   * @param {object} from   Object to copy from
-   * @param {object} to     Object to copy to
-   * @param {string} name   Name fo array property
-   */
-  function readArray (from, to, name) {
-    if (from[name]) {
-      to[name] = from[name];
-    } else {
-      to[name] = [];
-    }
-    return to[name];
-  }
-  
   /**
    * Create storeFactory id
    * @param {string}   id   Factory id to generate storeFactory id from
@@ -293,7 +276,7 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
     if (!customFilter) {
       customFilter = filterFunction;
     }
-    var filter = resourceFactory.newResourceFilter(CANVASSRES_SCHEMA.SCHEMA, base);
+    var filter = filterFactory.newResourceFilter(CANVASSRES_SCHEMA.SCHEMA, base);
     filter.customFunction = customFilter;
     return filter;
   }
@@ -302,11 +285,12 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
    * Generate a filtered list
    * @param {object} reslist    canvass result ResourceList object to filter
    * @param {object} filter     filter to apply
+   * @param {function} xtraFilter Function to provide additional filtering
    * @returns {Array} filtered list
    */
-  function getFilteredList(reslist, filter) {
+  function getFilteredList (reslist, filter, xtraFilter) {
     // canvass result specific filter function
-    return $filter('filterCanvassResult')(reslist.list, reslist.filter.schema, filter);
+    return filterFactory.getFilteredList('filterCanvassResult', reslist, filter, xtraFilter);
   }
   
   /**

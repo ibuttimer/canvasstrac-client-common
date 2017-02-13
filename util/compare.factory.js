@@ -10,9 +10,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-compareFactory.$inject = ['$injector', 'consoleService', 'SCHEMA_CONST'];
+compareFactory.$inject = ['$injector', 'consoleService', 'miscUtilFactory', 'SCHEMA_CONST'];
 
-function compareFactory ($injector, consoleService, SCHEMA_CONST) {
+function compareFactory ($injector, consoleService, miscUtilFactory, SCHEMA_CONST) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -30,8 +30,6 @@ function compareFactory ($injector, consoleService, SCHEMA_CONST) {
     compareFields: compareFields
   };
   
-  return factory;
-
   /* function implementation
     -------------------------- */
 
@@ -66,19 +64,35 @@ function compareFactory ($injector, consoleService, SCHEMA_CONST) {
   }
 
   /**
+   * Compare items
+   * @param {string}  a   First item to compare
+   * @param {string}  b   Second item to compare
+   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function basicCompare (a, b) {
+    var aNa = miscUtilFactory.isNullOrUndefined(a),
+      bNa = miscUtilFactory.isNullOrUndefined(b),
+      result = 0; // no diff by default
+    if (aNa && !bNa) {
+      result = -1;  // null/undefined before value
+    } else if (!aNa && bNa) {
+      result = 1;  // null/undefined before value
+    } else if (a < b) {
+      result = -1;
+    } else if (a > b) {
+      result = 1;
+    }
+    return result;
+  }
+
+  /**
    * Compare strings
    * @param {string}  a   First string to compare
    * @param {string}  b   Second string to compare
    * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
    */
   function compareStrings (a, b) {
-    if (a < b) {
-      return -1;
-    }
-    if (a > b) {
-      return 1;
-    }
-    return 0;
+    return basicCompare(a, b);
   }
 
   /**
@@ -104,31 +118,27 @@ function compareFactory ($injector, consoleService, SCHEMA_CONST) {
    * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
    */
   function compareDate (a, b) {
-    if (a < b) {
-      return -1;
-    }
-    if (a > b) {
-      return 1;
-    }
-    return 0;
+    return basicCompare(a, b);
   }
 
   /**
-   * Compare objects based on schema fields that have string values
-   * @param {object}  schema  Schema object
-   * @param {number}  index   Index of Schema field to use
-   * @param {object}  a       First object to compare
-   * @param {object}  b       Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   * Compare object properties to compare
+   * @param {object}       obj    Object to get property from 
+   * @param {string|Array} path   path to property
+   * @param {model}        model  name of property
+   * @returns {object|string|number}  object property
    */
   function getCompareItem (obj, path, model) {
     var item = obj;
     if (path) {
-      for (var i = 0; i < path.length; ++i) {
+      for (var i = 0; !miscUtilFactory.isNullOrUndefined(item) && (i < path.length); ++i) {
         item = item[path[i]];
       }
     }
-    return item[model];
+    if (!miscUtilFactory.isNullOrUndefined(item)) {
+      item = item[model];
+    }
+    return item;
   }
 
   /**
@@ -255,58 +265,60 @@ function compareFactory ($injector, consoleService, SCHEMA_CONST) {
     this.schema = schema;
     this.index = index;
     this.type = type;
+
+    /**
+     * Compare objects based on schema fields that have string values
+     * @param {object} a First object to compare
+     * @param {object} b Second object to compare
+     * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+     */
+    this.compareStringFields = function (a, b) {
+      return compareStringFields(this.schema, this.index, a, b);
+    };
+
+    /**
+     * Compare objects based on schema fields that have numeric values
+     * @param {object}  a       First object to compare
+     * @param {object}  b       Second object to compare
+     * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+     */
+    this.compareNumberFields = function (a, b) {
+      return compareNumberFields(this.schema, this.index, a, b);
+    };
+
+    /**
+     * Compare objects based on schema fields that have boolean values
+     * @param {object}  a       First object to compare
+     * @param {object}  b       Second object to compare
+     * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+     */
+    this.compareBooleanFields = function (a, b) {
+      return compareBooleanFields(this.schema, this.index, a, b);
+    };
+
+    /**
+     * Compare objects based on schema fields that have date values
+     * @param {object}  a       First object to compare
+     * @param {object}  b       Second object to compare
+     * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+     */
+    this.compareDateFields = function (a, b) {
+      return compareDateFields(this.schema, this.index, a, b);
+    };
+
+    /**
+     * Compare objects based on schema fields
+     * @param {object} a      First object to compare
+     * @param {object} b      Second object to compare
+     * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+     */
+    this.compareFields = function (a, b) {
+      return compareFields(this.schema, this.index, a, b);
+    };
   }
 
-  /**
-   * Compare objects based on schema fields that have string values
-   * @param {object} a First object to compare
-   * @param {object} b Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  Comparinator.prototype.compareStringFields = function (a, b) {
-    return compareStringFields(this.schema, this.index, a, b);
-  };
-
-  /**
-   * Compare objects based on schema fields that have numeric values
-   * @param {object}  a       First object to compare
-   * @param {object}  b       Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  Comparinator.prototype.compareNumberFields = function (a, b) {
-    return compareNumberFields(this.schema, this.index, a, b);
-  };
-
-  /**
-   * Compare objects based on schema fields that have boolean values
-   * @param {object}  a       First object to compare
-   * @param {object}  b       Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  Comparinator.prototype.compareBooleanFields = function (a, b) {
-    return compareBooleanFields(this.schema, this.index, a, b);
-  };
-
-  /**
-   * Compare objects based on schema fields that have date values
-   * @param {object}  a       First object to compare
-   * @param {object}  b       Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  Comparinator.prototype.compareDateFields = function (a, b) {
-    return compareDateFields(this.schema, this.index, a, b);
-  };
-
-  /**
-   * Compare objects based on schema fields
-   * @param {object} a      First object to compare
-   * @param {object} b      Second object to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
-   */
-  Comparinator.prototype.compareFields = function (a, b) {
-    return compareFields(this.schema, this.index, a, b);
-  };
-
+  // need the return here so that object prototype functions are added
+  return factory;
 }
 
 
