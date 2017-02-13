@@ -263,7 +263,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     if (factory.readRspObject) {
       // use the appropriate function to read the object(s)
       if (Array.isArray(toSave)) {
-        for (let i = 0; i < toSave.length; ++i) {
+        for (var i = 0; i < toSave.length; ++i) {
           factory.readRspObject(toSave[i], {
             obj: toSave[i]   // inplace update
           });
@@ -285,7 +285,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
     } else if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID_ARRAY(stdArgs.type)) {
       // field is an array of objectId
-      for (let i = 0; i < toSave.length; ++i) {
+      for (var i = 0; i < toSave.length; ++i) {
         toSave[i] = resp.list[i]._id;
       }
     }
