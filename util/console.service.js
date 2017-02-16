@@ -28,6 +28,10 @@ function ConsoleLogger(DBG, tag) {
     this.tag = tag;
   };
 
+  this.isEnabled = function () {
+    return DBG.isEnabled(this.tag);
+  };
+
   this.log = function () {
     var args = Array.prototype.slice.call(arguments);
     args.unshift(this.tag);
