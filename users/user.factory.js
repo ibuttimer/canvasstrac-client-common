@@ -12,23 +12,30 @@ angular.module('ct.clientCommon')
       peoplePath,
       addressPath,
       subSchemaList,
-        
+
       details = [
-        { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-        { field: 'UNAME', modelName: 'username', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-        { field: 'ROLE', modelName: 'role', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-        { field: 'PERSON', modelName: 'person', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID }
+        SCHEMA_CONST.ID,
+        {
+          field: 'UNAME', modelName: 'username',
+          dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+        },
+        {
+          field: 'ROLE', modelName: 'role', factory: 'roleFactory',
+          dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+        },
+        {
+          field: 'PERSON', modelName: 'person', factory: 'peopleFactory',
+          dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+        }
       ];
 
     // user schema is a combination of the person & address
     for (i = 0; i < details.length; ++i, ++uidx) {
-      ids[details[i].field] = i;          // id is index
-      modelProps.push({
-        id: uidx,
-        modelName: details[i].modelName,
-        dfltValue: details[i].dfltValue,
-        type: details[i].type
-      });
+      ids[details[i].field] = uidx;          // uidx is index
+
+      var args = angular.copy(details[i]);
+      args.id = uidx;
+      modelProps.push(schemaProvider.getModelPropObject(args));
     }
 
     peoplePath = modelProps[ids.PERSON].modelName; // path to person in user schema
@@ -51,18 +58,16 @@ angular.module('ct.clientCommon')
 
       for (i = 0; i < subSchema.schema.MODELPROPS.length; ++i, ++uidx) {
         ids[subIds[i]] = uidx;          // id is index
-        modelProps.push({
-          id: uidx,
-          modelName: subSchema.schema.MODELPROPS[i].modelName,
-          modelPath: subSchema.path,
-          dfltValue: subSchema.schema.MODELPROPS[i].dfltValue,
-          type: subSchema.schema.MODELPROPS[i].type
-        });
+
+        var args = angular.copy(subSchema.schema.MODELPROPS[i]);
+        args.id = uidx;
+        args.modelPath = subSchema.path;
+        modelProps.push(schemaProvider.getModelPropObject(args));
       }
     });
 
     var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('user'),
-      schema = schemaProvider.getSchema('User', modelProps, ID_TAG),
+      schema = schemaProvider.getSchema('User', modelProps, ids, ID_TAG),
 
       USER_UNAME_IDX =
         schema.addFieldFromModelProp('uname', 'Username', ids.UNAME),
@@ -299,11 +304,15 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
 //    if (!args.convert) {
 //      args.convert = readRspObjectValueConvert;
 //    }
-//    var user = USERSCHEMA.SCHEMA.readProperty(response, args);
+//    // add resources required by Schema object
+//    resourceFactory.addResourcesToArgs(args);
 //
-//    con.debug('Read user rsp object: ' + user);
+//    var stdArgs = resourceFactory.standardiseArgs(args),
+//      object = USERSCHEMA.SCHEMA.read(response, stdArgs);
 //
-//    return user;
+//    con.debug('Read user rsp object: ' + object);
+//
+//    return object;
 //  }
 
   /**

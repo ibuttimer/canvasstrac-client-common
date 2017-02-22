@@ -7,26 +7,33 @@ angular.module('ct.clientCommon')
   .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'NAME', modelName: 'name', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'DESCRIPTION', modelName: 'description', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'QUESTIONS', modelName: 'questions', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY }
+      SCHEMA_CONST.ID,
+      {
+        field: 'NAME', modelName: 'name',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'DESCRIPTION', modelName: 'description',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'QUESTIONS', modelName: 'questions', factory: 'questionFactory',
+        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
+      }
     ],
       ids = {},
       modelProps = [];
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      modelProps.push({
-        id: i,
-        modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue,
-        type: details[i].type
-      });
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      modelProps.push(schemaProvider.getModelPropObject(args));
     }
 
     var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('survey'),
-      schema = schemaProvider.getSchema('Survey', modelProps, ID_TAG),
+      schema = schemaProvider.getSchema('Survey', modelProps, ids, ID_TAG),
       SURVEY_NAME_IDX =
         schema.addFieldFromModelProp('name', 'Name', ids.NAME),
       SURVEY_DESCRIPTION_IDX =
@@ -69,7 +76,7 @@ function surveyFactory($resource, $injector, baseURL, SURVEYSCHEMA, storeFactory
       NAME: 'surveyFactory',
       getSurveys: getSurveys,
       readRspObject: readRspObject,
-      readSurveyRsp: readSurveyRsp,
+      readResponse: readResponse,
       storeRspObject: storeRspObject
     },
    con = consoleService.getLogger(factory.NAME),
@@ -106,18 +113,22 @@ function surveyFactory($resource, $injector, baseURL, SURVEYSCHEMA, storeFactory
    * @returns {object}  Survey object
    */
   function readRspObject(response, args) {
+    if (!args) {
+      args = {};
+    }
     // no conversions required by default
-//    if (!args) {
-//      args = {};
-//    }
 //    if (!args.convert) {
 //      args.convert = readRspObjectValueConvert;
 //    }
-    var survey = SURVEYSCHEMA.SCHEMA.readProperty(response, args);
+    // add resources required by Schema object
+    resourceFactory.addResourcesToArgs(args);
 
-    con.debug('Read survey rsp object: ' + survey);
+    var stdArgs = resourceFactory.standardiseArgs(args),
+      object = SURVEYSCHEMA.SCHEMA.read(response, stdArgs);
 
-    return survey;
+    con.debug('Read survey rsp object: ' + object);
+
+    return object;
   }
 
   /**
@@ -129,8 +140,8 @@ function surveyFactory($resource, $injector, baseURL, SURVEYSCHEMA, storeFactory
    *    {function}     next       function to call after processing
    * @returns {object}   Survey object
    */
-  function readSurveyRsp(response, args) {
-    var survey = readRspObject(response);
+  function readResponse (response, args) {
+    var survey = readRspObject(response, args);
     return storeRspObject(survey, args);
   }
 
@@ -143,7 +154,10 @@ function surveyFactory($resource, $injector, baseURL, SURVEYSCHEMA, storeFactory
    * @return {object}  survey ResourceList object
    */
   function storeRspObject (obj, args) {
-    return resourceFactory.storeServerRsp(obj, args);
+    var storeArgs = miscUtilFactory.copyAndAddProperties(args, {
+      factory: $injector.get(factory.NAME)
+    });
+    return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
 

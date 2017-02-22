@@ -7,34 +7,65 @@ angular.module('ct.clientCommon')
   .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'ADDR1', modelName: 'addrLine1', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'ADDR2', modelName: 'addrLine2', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'ADDR3', modelName: 'addrLine3', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'TOWN', modelName: 'town', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'CITY',  modelName: 'city', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'COUNTY', modelName: 'county', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'COUNTRY', modelName: 'country', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'PCODE', modelName: 'postcode', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'GPS', modelName: 'gps', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'VOTEDIST', modelName: 'votingDistrict', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'OWNER', modelName: 'owner', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID }
+      SCHEMA_CONST.ID,
+      {
+        field: 'ADDR1', modelName: 'addrLine1',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'ADDR2', modelName: 'addrLine2',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'ADDR3', modelName: 'addrLine3',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'TOWN', modelName: 'town',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'CITY', modelName: 'city',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'COUNTY', modelName: 'county',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'COUNTRY', modelName: 'country',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'PCODE', modelName: 'postcode',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'GPS', modelName: 'gps',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'VOTEDIST', modelName: 'votingDistrict',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+      },
+      {
+        field: 'OWNER', modelName: 'owner',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+      }
     ],
       ids = {},
       modelProps = [];
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      modelProps.push({
-        id: i,
-        modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue,
-        type: details[i].type
-      });
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      modelProps.push(schemaProvider.getModelPropObject(args));
     }
 
     var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('addrs'),
-      schema = schemaProvider.getSchema('Address', modelProps, ID_TAG),
+      schema = schemaProvider.getSchema('Address', modelProps, ids, ID_TAG),
       ADDRESS_ADDR_IDX = 
         schema.addFieldFromModelProp('addr', 'Address', [ids.ADDR1, ids.ADDR2, ids.ADDR3]),
       ADDRESS_TOWN_IDX = 
@@ -126,24 +157,28 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-addressFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'SCHEMA_CONST', 'ADDRSCHEMA'];
+addressFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'consoleService', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'SCHEMA_CONST', 'ADDRSCHEMA'];
 
-function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, SCHEMA_CONST, ADDRSCHEMA) {
+function addressFactory($resource, $filter, $injector, baseURL, consoleService, storeFactory, resourceFactory, compareFactory, filterFactory, SCHEMA_CONST, ADDRSCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-    NAME: 'addressFactory',
-    getAddresses: getAddresses,
-    getCount: getCount,
-    setFilter: setFilter,
-    newFilter: newFilter,
-    getFilteredList: getFilteredList,
-    forEachSchemaField: forEachAddrSchemaField,
-    getSortOptions: getSortOptions,
-    getSortFunction: getSortFunction,
-    getFilteredResource: getFilteredResource,
-    stringifyAddress: stringifyAddress
-  },
+      NAME: 'addressFactory',
+      getAddresses: getAddresses,
+      getCount: getCount,
+
+      readRspObject: readRspObject,
+
+      setFilter: setFilter,
+      newFilter: newFilter,
+      getFilteredList: getFilteredList,
+      forEachSchemaField: forEachAddrSchemaField,
+      getSortOptions: getSortOptions,
+      getSortFunction: getSortFunction,
+      getFilteredResource: getFilteredResource,
+      stringifyAddress: stringifyAddress
+    },
+    con = consoleService.getLogger(factory.NAME),
     stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
       storeId: storeId,
       schema: ADDRSCHEMA.SCHEMA,
@@ -162,7 +197,35 @@ function addressFactory ($resource, $filter, $injector, baseURL, storeFactory, r
   function getCount () {
     return resourceFactory.getCount('addresses');
   }
-  
+
+  /**
+   * Read a server response address object
+   * @param {object} response   Server response
+   * @param {object} args       arguments object
+   *                            @see Schema.readProperty() for details
+   * @returns {object}  Address object
+   */
+  function readRspObject (response, args) {
+    if (!args) {
+      args = {};
+    }
+    // no conversions required by default
+//    if (!args.convert) {
+//      args.convert = readRspObjectValueConvert;
+//    }
+    // add resources required by Schema object
+    resourceFactory.addResourcesToArgs(args);
+
+    var stdArgs = resourceFactory.standardiseArgs(args),
+      object = ADDRSCHEMA.SCHEMA.read(response, stdArgs);
+
+    con.debug('Read address rsp object: ' + object);
+
+    return object;
+  }
+
+
+
   function getFilteredResource (resList, filter, success, failure, forEachSchemaField) {
     
     filter = filter || newFilter();

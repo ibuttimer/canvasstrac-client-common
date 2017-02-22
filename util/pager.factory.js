@@ -123,7 +123,7 @@ function Pager(id, items, totalItems, currentPage, itemsPerPage, maxDispPages, t
 }
 
 Pager.prototype.toString = function pagerToString () {
-  return 'Pager{ items: ' + this.items.toString() +
+  return 'Pager{ items: ' + this.propertyToString(this.items) +
   ', totalItems: ' + this.totalItems +
   ', currentPage: ' + this.currentPage +
   ', itemsPerPage: ' + this.itemsPerPage +
@@ -133,9 +133,25 @@ Pager.prototype.toString = function pagerToString () {
   ', endPage: ' + this.endPage +
   ', startIndex: ' + this.startIndex +
   ', endIndex: ' + this.endIndex +
-  ', pages: ' + this.pages.toString() +
-  ', pageItems: ' + this.pageItems.toString() + '}';
+  ', pages: ' + this.propertyToString(this.pages) +
+  ', pageItems: ' + this.propertyToString(this.pageItems) + '}';
 };
+
+/**
+  * Wrapper for toString to prevent toString calls on undefined
+  * @param {object} property object to call to String on
+  * @returns {string} string representation
+  */
+Pager.prototype.propertyToString = function (property) {
+  var str;
+  if (property) {
+    str = property.toString();
+  } else {
+    str = property;
+  }
+  return str;
+};
+
 
 Pager.prototype.setPage = function (newPage) {
   if ((newPage >= 1) && (newPage <= this.totalPages)) {

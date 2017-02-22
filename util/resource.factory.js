@@ -5,14 +5,35 @@
 angular.module('ct.clientCommon')
 
   .constant('RESOURCE_CONST', (function () {
-    var schemaPathType = ['path', 'type', 'schema', 'schemaId'],
+    var model = ['path', 'type', 'storage', 'factory'],   // related to ModelProp
+      schemaModel = ['schema', 'schemaId'].concat(model), // related to Schema & ModelProp
       basicStore = ['objId', 'flags', 'storage', 'next'],
-      stdArgs = schemaPathType.concat(basicStore, ['subObj', 'customArgs']);
+      stdArgs = schemaModel.concat(basicStore, ['subObj', 'customArgs']),
+      processRead = 0x01,   // process argument during read
+      processStore = 0x02,  // process argument during store
+      toProcess = function (processArg, toCheck) {
+        var process = true;
+        if (processArg && toCheck) {
+          process = ((processArg & toCheck) !== 0);
+        }
+        return process;
+      };
     return {
       STORE_LIST: 'list',
       STORE_OBJ: 'obj',
-      
-      SCHEMA_PATH_TYPE_ARGS: schemaPathType,
+
+      PROCESS_READ: processRead,
+      PROCESS_STORE: processStore,
+      PROCESS_READ_STORE: (processRead | processStore),
+      PROCESS_FOR_READ: function (toCheck) {
+        return toProcess(processRead, toCheck);
+      },
+      PROCESS_FOR_STORE: function (toCheck) {
+        return toProcess(processStore, toCheck);
+      },
+
+      MODEL_ARGS: model,
+      SCHEMA_MODEL_ARGS: schemaModel,
       BASIC_STORE_ARGS: basicStore,
       STD_ARGS: stdArgs
     };
@@ -38,11 +59,16 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     NAME: 'resourceFactory',
     getResources: getResources,
     getCount: getCount,
+    createResources: createResources,
+    getStoreResource: getStoreResource,
     storeServerRsp: storeServerRsp,
     storeSubDoc: storeSubDoc,
     standardiseArgs: standardiseArgs,
-    standardisePathTypeArgs: standardisePathTypeArgs,
-    copyPathTypeArgs: copyPathTypeArgs,
+    findInStandardArgs: findInStandardArgs,
+    findAllInStandardArgs: findAllInStandardArgs,
+    addResourcesToArgs: addResourcesToArgs,
+    standardiseModelArgs: standardiseModelArgs,
+    getObjectInfo: getObjectInfo,
     removeSchemaPathTypeArgs: removeSchemaPathTypeArgs,
     copyBasicStorageArgs: copyBasicStorageArgs,
     removeBasicStorageArgs: removeBasicStorageArgs,
@@ -66,8 +92,28 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     isDescendingSortOrder: isDescendingSortOrder,
     buildQuery: buildQuery
   },
-  standardFactories = {};
-  
+  standardFactories = {},
+  modelArgsMap = {};
+
+  RESOURCE_CONST.MODEL_ARGS.forEach(function (prop) {
+    switch (prop) {
+      case 'path':
+        modelArgsMap[prop] = 'getModelName'; // Schema object function to get value
+        break;
+      case 'type':
+        modelArgsMap[prop] = 'getType'; // Schema object function to get value
+        break;
+      case 'storage':
+        modelArgsMap[prop] = 'getStorageType'; // Schema object function to get value
+        break;
+      case 'factory':
+        modelArgsMap[prop] = 'getModelFactory'; // Schema object function to get value
+        break;
+    }
+  });
+
+
+  // need to return factory as end so that object prototype functions are added
 //  return factory;
 
   /* function implementation
@@ -137,6 +183,71 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     return factory;
   }
 
+
+  function createResources (options, resources) {
+    var srcId,
+      result,
+      args = standardiseArgs(options);
+    if (!resources) {
+      resources = {};
+    }
+    args.objId.forEach(function (id) {
+      switch (options.storage) {
+        case RESOURCE_CONST.STORE_OBJ:
+          if (!srcId) {
+            result = options.factory.newObj(id, storeFactory.CREATE_INIT);
+          } else {
+            result = options.factory.duplicateObj(id, srcId, storeFactory.OVERWRITE);
+          }
+          break;
+        case RESOURCE_CONST.STORE_LIST:
+          if (!srcId) {
+            result = options.factory.newList(id, {
+              title: id,
+              flags: storeFactory.CREATE_INIT
+            });
+          } else {
+            result = options.factory.duplicateList(id, srcId, storeFactory.OVERWRITE);
+          }
+          break;
+        default:
+          result = undefined;
+      }
+      if (result) {
+        resources[id] = result;
+      }
+      if (!srcId) {
+        srcId = id;
+      }
+    });
+
+    if (options.subObj) {
+      options.subObj.forEach(function (subObj) {
+        createResources(subObj, resources);
+      });
+    }
+
+    return resources;
+  }
+
+  /**
+   * Get a store object
+   * @param {object}       options   process arguments object with following properties:
+   *  @param {string}       objId    id of object to get
+   *  @param {number}       flags    storefactory flags
+   * @return {object}       ResourceList or object
+   */
+  function getStoreResource (options) {
+    var result,
+      args = standardiseArgs(options);
+    if (args.storage === RESOURCE_CONST.STORE_LIST) {
+      result = args.factory.getList(args.objId, args.flags);
+    } else if (args.storage === RESOURCE_CONST.STORE_OBJ) {
+      result = args.factory.getObj(args.objId, args.flags);
+    }
+    return result;
+  }
+
   /**
    * Store a response from the server
    * @param {object}       response Server response
@@ -155,12 +266,17 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    */
   function storeServerRsp (response, args) {
 
+    if (!RESOURCE_CONST.PROCESS_FOR_STORE(args.processArg)) {
+      // arg only processed during read, so ignore
+      return undefined;
+    } // else process for store
+
     var stdArgs = standardiseArgs(args, args.parent),
       factory = stdArgs.factory,
       idArray = stdArgs.objId,
       resp,
       asList, i,
-      toSave = getToSave(response, stdArgs).toSave;
+      toSave = getObjectInfo(response, stdArgs).object;
 
     // store sub objects first
     if (args.subObj) {
@@ -220,9 +336,9 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @param {string} path     Path to required object
    * @return {object} object to save
    */
-  function getToSave (response, args) {
+  function getObjectInfo (response, args) {
     var paths = [],
-      toSave = response,
+      object = response,
       parent, property;
 
     if (args.path) {
@@ -234,13 +350,13 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     
     // drill down to get item to save
     paths.forEach(function (path) {
-      if (toSave) {
-        parent = toSave;
+      if (object) {
+        parent = object;
         property = path;
-        toSave = parent[property];
+        object = parent[property];
       }
     });
-    return { toSave: toSave,    // object to save
+    return { object: object,    // object to save
               parent: parent,   // parent object
               property: property }; // parent object property
   }
@@ -253,43 +369,35 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @param {object}        factory Factory to use to generate new factory objects
    * @param {number}        flags   storefactory flags
    */
-  function storeSubDoc (response, args, parent) {
+  function storeSubDoc(response, args, parent) {
+
+    if (!RESOURCE_CONST.PROCESS_FOR_STORE(args.processArg)) {
+      // arg only processed during read, so ignore
+      return undefined;
+    } // else process for store
+
     var stdArgs = standardiseArgs(args, parent),
       factory = stdArgs.factory,
       resp,
-      toSaveInfo = getToSave(response, stdArgs  /*.path*/),
-      toSave = toSaveInfo.toSave;
-
-    if (factory.readRspObject) {
-      // use the appropriate function to read the object(s)
-      if (Array.isArray(toSave)) {
-        for (var i = 0; i < toSave.length; ++i) {
-          factory.readRspObject(toSave[i], {
-            obj: toSave[i]   // inplace update
-          });
-        }
-      } else {
-        factory.readRspObject(toSave, {
-          obj: toSave   // inplace update
-        });
-      }
-    }
+      toSaveInfo = getObjectInfo(response, stdArgs),
+      toSave = toSaveInfo.object;
 
     // store subdoc, resp is ResourceList or object
     resp = storeServerRsp(response, stdArgs);
 
     // update response with expected response type i.e. ObjectIds
-    if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID(stdArgs.type)) {
-      // field is objectId, so was saved as object
-      toSaveInfo.parent[toSaveInfo.property] = resp._id;
+    if (resp) {
+      if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID(stdArgs.type)) {
+        // field is objectId, so was saved as object
+        toSaveInfo.parent[toSaveInfo.property] = resp._id;
 
-    } else if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID_ARRAY(stdArgs.type)) {
-      // field is an array of objectId
-      for (var i = 0; i < toSave.length; ++i) {
-        toSave[i] = resp.list[i]._id;
+      } else if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID_ARRAY(stdArgs.type)) {
+        // field is an array of objectId
+        for (var i = 0; i < toSave.length; ++i) {
+          toSave[i] = resp.list[i]._id;
+        }
       }
     }
-
     return resp;
   }
 
@@ -303,20 +411,21 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
     var stdArgs = angular.copy(args);
 
-    if (typeof args.factory === 'string') {
-      // get factory instance from injector
-      stdArgs.factory = $injector.get(args.factory);
-    }
     if (stdArgs.objId) {
       stdArgs.objId = miscUtilFactory.toArray(stdArgs.objId);
     } else {
       stdArgs.objId = [];
     }
-    stdArgs.flags = (args.flags || storeFactory.NOFLAG);
+    stdArgs.flags = (args.flags ? args.flags : storeFactory.NOFLAG);
     stdArgs.parent = parent;
 
-    copySchemaPathTypeArgs(
-      standardisePathTypeArgs(copySchemaPathTypeArgs(args)), stdArgs);
+    copySchemaModelArgs(
+      standardiseModelArgs(copySchemaModelArgs(args), false /*no copy*/), stdArgs);
+
+    if (typeof args.factory === 'string') {
+      // get factory instance from injector
+      stdArgs.factory = $injector.get(args.factory);
+    }
 
     if (stdArgs.subObj) {
       if (Array.isArray(stdArgs.subObj)) {
@@ -332,67 +441,108 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   }
 
   /**
+   * Find an arg object within a StandardArgs object 
+   * @param {object}       stdArgs  StandardArgs object to traverse
+   * @param {function}     callback Function to test arg objects
+   * @return {object}      arguments object
+   */
+  function findInStandardArgs (stdArgs, callback) {
+
+    var arg;
+    if (callback(stdArgs)) {
+      arg = stdArgs;
+    }
+    if (!arg && stdArgs.subObj) {
+      for (var i = 0; !arg && (i < stdArgs.subObj.length); ++i) {
+        arg = findInStandardArgs(stdArgs.subObj[i], callback);
+      }
+    }
+    return arg;
+  }
+
+  /**
+   * Find all arg objects within a StandardArgs object 
+   * @param {object}       stdArgs  StandardArgs object to traverse
+   * @param {function}     callback Function to test arg objects
+   * @param {Array}        args     Array to add matching arg objects to
+   * @return {Array}       Array of matching arg objects
+   */
+  function findAllInStandardArgs (stdArgs, callback, args) {
+
+    if (!args) {
+      args = [];
+    }
+    if (callback(stdArgs)) {
+      args.push(stdArgs);
+    }
+    if (stdArgs.subObj) {
+      stdArgs.subObj.forEach(function (sub) {
+        findAllInStandardArgs(sub, callback, args);
+      });
+    }
+    return args;
+  }
+
+  /**
+   * Add resources required by Schema object
+   * @param {object}       args   Args object to add to
+   * @return {object}      arguments object
+   */
+  function addResourcesToArgs (args) {
+    if (!args.injector) {
+      /* need to pass run stage injector to Schema object as since it is created during the config
+        stage it only has access to the config stage injector (only providers and constants accessible) */
+      args.injector = $injector;
+    }
+    if (!args.findInStandardArgs) {
+      args.findInStandardArgs = findInStandardArgs;
+    }
+    return args;
+  }
+
+  /**
    * Standardise a server response argument object
    * @param {object}       args     process arguments object with following properties:
    * @see storeServerRsp()
    * @return {object}       arguments object
    */
-  function standardisePathTypeArgs (args, makeCopy) {
+  function standardiseModelArgs (args, makeCopy) {
     
-    makeCopy = (typeof makeCopy === 'undefined' ? true : makeCopy);
+    makeCopy = ((makeCopy === undefined) ? true : makeCopy);
 
     var stdArgs = args;
     if (makeCopy) {
-      stdArgs = copySchemaPathTypeArgs(args);
+      stdArgs = copySchemaModelArgs(args);
     }
 
     if (stdArgs.schema && 
         (typeof stdArgs.schemaId === 'number') && (stdArgs.schemaId >= 0)) {
-      if (!stdArgs.path) {
-        // path not explicitly provided, retrieve from schema & schemaId
-        stdArgs.path = stdArgs.schema.getModelName(stdArgs.schemaId);
-      }
-      if (!stdArgs.type) {
-        // path not explicitly provided, retrieve from schema & schemaId
-        stdArgs.type = stdArgs.schema.getType(stdArgs.schemaId);
-      }
+      // if not explicitly set retrieve using schema & schemaId
+      RESOURCE_CONST.MODEL_ARGS.forEach(function (prop) {
+        if (!stdArgs[prop]) {
+          stdArgs[prop] = stdArgs.schema[modelArgsMap[prop]](stdArgs.schemaId);
+        }
+      });
+
+
+
+
+//-      if (!stdArgs.path) {
+//-        // path not explicitly provided, retrieve from schema & schemaId
+//-        stdArgs.path = stdArgs.schema.getModelName(stdArgs.schemaId);
+//-      }
+//-      if (!stdArgs.type) {
+//-        // path not explicitly provided, retrieve from schema & schemaId
+//-        stdArgs.type = stdArgs.schema.getType(stdArgs.schemaId);
+
+
     }
 
     return stdArgs;
   }
 
   /**
-   * Copy schema/path/type arguments from an argument object if not set
-   * @param {object}       args     process arguments object
-   * @param {object}       from     process arguments object to copy from
-   * @return {object}       arguments object
-   */
-  function copyPathTypeArgs (args, from) {
-
-    var stdArgs = args;
-
-    if (!args.path) {
-      stdArgs = copySchemaPathTypeArgs(args);
-      if (from.path) {
-        stdArgs.path = from.path;
-        if (!stdArgs.type && from.type) {
-          stdArgs.type = from.type;
-        }
-      } else {
-        if (!stdArgs.schema && from.schema) {
-          stdArgs.schema = from.schema;
-        }
-        if (!stdArgs.schemaId && from.schemaId) {
-          stdArgs.schemaId = from.schemaId;
-        }
-      }
-    }
-
-    return stdArgs;
-  }
-
-  /**
-   * Copy the standard schema/path/type arguments
+   * Copy the standard Schema/ModelProp arguments
    * @param {Array}  list list of properties to copy
    * @param {object} args process arguments object to copy from
    * @param {object} to   process arguments object to copy to
@@ -406,22 +556,22 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   }
 
   /**
-   * Copy the standard schema/path/type arguments
+   * Copy the standard Schema/ModelProp arguments
    * @param {object}       args     process arguments object to copy from
    * @param {object}       to       process arguments object to copy to
    * @return {object}       arguments object
    */
-  function copySchemaPathTypeArgs (args, to) {
-    return copyArgs(RESOURCE_CONST.SCHEMA_PATH_TYPE_ARGS, args, to);
+  function copySchemaModelArgs (args, to) {
+    return copyArgs(RESOURCE_CONST.SCHEMA_MODEL_ARGS, args, to);
   }
 
   /**
-   * Remove the standard schema/path/type arguments
+   * Remove the standard Schema/ModelProp arguments
    * @param {object}       args     process arguments object to remove from
    * @return {object}       arguments object
    */
   function removeSchemaPathTypeArgs (args) {
-    return miscUtilFactory.removeProperties(args, RESOURCE_CONST.SCHEMA_PATH_TYPE_ARGS);
+    return miscUtilFactory.removeProperties(args, RESOURCE_CONST.SCHEMA_MODEL_ARGS);
   }
 
   /**
@@ -435,7 +585,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   }
 
   /**
-   * Remove the standard schema/path/type arguments
+   * Remove the standard Schema/ModelProp arguments
    * @param {object}       args     process arguments object to remove from
    * @return {object}       arguments object
    */
@@ -838,6 +988,14 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   }
   
   /**
+   * Get the factory schema
+   * @param {object} factory schema
+   */
+  StandardFactory.prototype.getSchema = function () {
+    return this.schema;
+  };
+
+  /**
    * Create a new object
    * @param {string} id     Factory id of new object
    * @param {number} flags  storefactory flags
@@ -845,7 +1003,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   StandardFactory.prototype.newObj = function (id, flags) {
     return storeFactory.newObj(this.storeId(id), this.schema.getObject(), flags);
   };
-  
+
   /**
    * Create a new object by duplicating an existing object
    * @param {string} id     Factory id of new object
@@ -955,9 +1113,10 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @returns {object} ResourceList object
    */
   StandardFactory.prototype.setList = function (id, list, flags, title) {
-    return setResourceList(this.storeId(id), list, flags, 
+    var newListFxn = this.newList.bind(this, id);
+    return setResourceList(this.storeId(id), list, flags,
             function (flags) {
-              return this.newList(id, { 
+              return newListFxn({
                 id: id, title: title, list: list, flags: flags }
               );
             });
@@ -970,11 +1129,12 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @returns {object} ResourceList object
    */
   StandardFactory.prototype.getList = function (id, flags) {
+    var newListFxn = this.newList.bind(this, id);
     return getResourceList(this.storeId(id), flags,
             function (flags) {
-              return this.newList(id, { 
-                id: id, flags: flags }
-              );
+              return newListFxn({
+                id: id, flags: flags
+              });
             });
   };
   
@@ -1299,15 +1459,30 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   ResourceList.prototype.toString = function () {
     return 'ResourceList{ id: ' + this.id +
     ', title: ' + this.title +
-    ', list: ' + this.list.toString() +
+    ', list: ' + this.propertyToString(this.list) +
     ', count: ' + this.count +
-    ', filterList: ' + this.filterList.toString() +
+    ', filterList: ' + this.propertyToString(this.filterList) +
     ', filterCount: ' + this.filterCount +
-    ', filter: ' + this.filter.toString() +
+    ', filter: ' + this.propertyToString(this.filter) +
     ', pager: ' + this.pager +
     ', selCount: ' + this.selCount +
-    ', sortOptions: ' + this.sortOptions.toString() +
+    ', sortOptions: ' + this.propertyToString(this.sortOptions) +
     ', sortBy: ' + this.sortBy + '}';
+  };
+
+  /**
+   * Wrapper for toString to prevent toString calls on undefined
+   * @param {object} property object to call to String on
+   * @returns {string} string representation
+   */
+  ResourceList.prototype.propertyToString = function (property) {
+    var str;
+    if (property) {
+      str = property.toString();
+    } else {
+      str = property;
+    }
+    return str;
   };
 
   // need the return here so that object prototype functions are added
