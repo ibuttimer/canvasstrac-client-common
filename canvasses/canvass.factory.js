@@ -162,6 +162,7 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
       object = CANVASSSCHEMA.SCHEMA.read(response, stdArgs);
 
     processAddressResultsLink(response, stdArgs);
+    processQuestionResultsLink(response, stdArgs);
 
     con.debug('Read canvass rsp object: ' + object);
 
@@ -184,6 +185,25 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
         });
         
       linkAddressAndResults(addr, result, response);
+    }
+  }
+
+  /**
+   * Process the linking of questions and results
+   * @param {object} response   Server response
+   * @param {object} args       arguments object
+   */
+  function processQuestionResultsLink (response, args) {
+    if (args.linkQuestionAndResult) {
+      var stdArgs = resourceFactory.standardiseArgs(args),
+        ques = resourceFactory.findAllInStandardArgs(stdArgs, function (arg) {
+          return arg[factory.QUES_RES_LINKQUES];
+        }),
+        result = resourceFactory.findAllInStandardArgs(stdArgs, function (arg) {
+          return arg[factory.QUES_RES_LINKRES];
+        });
+
+      linkQuestionAndResults(ques, result, response);
     }
   }
 
@@ -287,7 +307,7 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
                 // link address and canvass result
                 addr.canvassResult = resObj._id;
               }
-            })
+            });
           });
         });
       }
@@ -295,221 +315,183 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
   }
 
   /**
-    * Link addresses to canvass results
-    * @param {string|Array} resultsId   id/array of ids of canvass result lists
-    * @param {string|Array} addrId      id/array of ids of address lists
+    * Link questions to canvass results
+    * @param {object|Array} quesArgs    arg object/array of arg objects of questions
+    * @param {object|Array} resultsId   arg object/array of arg objects of results
     */
-  function linkAddrListAndResults(resultsId, addrId) {
-    if (resultsId && addrId) {
-      // set list to a copy of the response list
-      var addrArray = miscUtilFactory.toArray(addrId),
-        changed = [];
+  function linkQuestionAndResults (quesArgs, resultArgs, response) {
+    if (quesArgs && resultArgs) {
+      var quesLists = [],
+        resLists = [],
+        i, resData;
 
-      miscUtilFactory.toArray(resultsId).forEach(function (resId) {
-        var list = canvassResultFactory.getList(resId);
-        if (list) {
-          list.forEachInList(function (result) {
-            addrArray.forEach(function (addrId) {
-              var addrList = addressFactory.getList(addrId);
-              if (addrList) {
-                var addr = addrList.findInList(function (entry) {
-                  return (entry._id === result.address._id);
-                });
-                if (addr) {
-                  // link address and canvass result
-                  addr.canvassResult = result._id;
-                  if (changed.indexOf(addrList) === -1) {
-                    changed.push(addrList);
+      miscUtilFactory.toArray(quesArgs).forEach(function (quesArg) {
+        quesLists.push({
+          list: resourceFactory.getObjectInfo(response, quesArg).object,  // questions array
+          factory: quesArg.factory                                // factory to handle them
+        });
+      });
+      miscUtilFactory.toArray(resultArgs).forEach(function (resArg) {
+        resLists.push({
+          list: resourceFactory.getObjectInfo(response, resArg).object,
+          getChartType: (resArg.customArgs ? resArg.customArgs.getChartType : undefined)
+        });
+      });
+
+      if (quesLists.length && resLists.length) {
+        // loop questions initialising results related data
+        quesLists.forEach(function (questionList) {
+          questionList.list.forEach(function (question) {
+            resData = {
+              // labels, chart, data, series, maxValue, data indices properties
+            }; // put all results related stuff in a single object
+            if (questionList.factory.showQuestionOptions(question.type)) {
+              resData.labels = question.options;
+
+              /* chart.js pie, polarArea & doughnut charts may be displayed using
+                  single data series (i.e. data = []), whereas chart.js radar, line &
+                  bar require multiple data series (i.e. data = [[], []]) */
+              var array = []; // raw data array
+              for (i = 0; i < resData.labels.length; ++i) {
+                array[i] = 0;
+
+                // add properties to the question whose values are the indices into the data array
+                resData[makeOptionIndexPropertyName(resData.labels[i])] = i;
+              }
+              
+              resLists.forEach(function (res) {
+                if (res.getChartType) {
+                  resData.chart = res.getChartType(question.type);
+                  switch (resData.chart) {
+                    case CHARTS.PIE:
+                    case CHARTS.POLAR:
+                    case CHARTS.DOUGHNUT:
+                      resData.data = array;
+                      // series info not required
+                      break;
+                    case CHARTS.BAR:
+                    case CHARTS.RADAR:
+                    case CHARTS.LINE:
+                      resData.data = [array];
+                      resData.series = ['0'];  // just one series
+                      break;
                   }
                 }
-              }
-            });
-          });
-        }
-      });
-      changed.forEach(function (list) {
-        list.exeChanged();
-      });
-    }
-  }
+              });
+              resData.maxValue = 0;
 
-  /**
-    * Link survey questions to canvass results
-    * @param {string|Array} resultArgs  id/array of ids of canvass result lists
-    * @param {string|Array} surveyArgs  id/array of ids of survey objects
-    */
-  function linkQuestionsAndResults (resultArgs, surveyArgs) {
-    if (resultArgs && surveyArgs) {
-      // set list to a copy of the response list
-      var i, 
-        quesArray = [], // array of question lists
-        quesPath = SURVEYSCHEMA.SCHEMA.getModelName(SURVEYSCHEMA.IDs.QUESTIONS),
-        resArray = miscUtilFactory.toArray(resultArgs.objId);
-      
-      // retrieve all local work question lists
-      miscUtilFactory.toArray(surveyArgs).forEach(function (survey) {
-        if (survey.subObj) {
-          miscUtilFactory.toArray(survey.subObj).forEach(function (sub) {
-            if (sub.path === quesPath) {
-              // questions local work object
-              var quesList = sub.factory.getList(sub.objId);
-              if (quesList) {
-                quesArray.push(quesList);
-                
-                quesList.forEachInList(function (question) {
-                  if (sub.factory.showQuestionOptions(question.type)) {
-                    question.labels = question.options;
-
-                    /* chart.js pie, polarArea & doughnut charts may be displayed using
-                        single data series (i.e. data = []), whereas chart.js radar, line &
-                        bar require multiple data series (i.e. data = [[], []]) */
-                    var array = []; // raw data array
-                    for (i = 0; i < question.labels.length; ++i) {
-                      array[i] = 0;
-
-                      // add properties to the question whose values are the indices into the data array
-                      question[makeOptionIndexPropertyName(question.labels[i])] = i;
-                    }
-                    if (resultArgs.customArgs) {
-                      question.chart = resultArgs.customArgs.getChartType(question.type);
-                      switch (question.chart) {
-                        case CHARTS.PIE:
-                        case CHARTS.POLAR:
-                        case CHARTS.DOUGHNUT:
-                          question.data = array;
-                          // series info not required
-                          break;
-                        case CHARTS.BAR:
-                        case CHARTS.RADAR:
-                        case CHARTS.LINE:
-                          question.data = [array];
-                          question.series = ['0'];  // just one series
-                          break;
-                      }
-                    } else {
-                      question.data = array;
-                    }
-                    question.maxValue = 0;
-                    
-                  } else if (sub.factory.showTextInput(question.type)) {
-                    question.data = [];
-                  }
-                });
-              }
+            } else if (questionList.factory.showTextInput(question.type)) {
+              resData.data = [];
             }
+            question.resData = resData;
           });
-        }
-      });
-
-      if (quesArray.length) {
+        });
+        
         // loop through results linking answers & questions
-        var list,
-          start,
+        var start,
           ques,
-          procObj = function (list) {
-            var self = this;
-            self.list = list;
-            self.answer = undefined;
-            self.question = undefined;
-            self.seriesIdx = -1;
-            
-            self.setAnswer = function (answer) {
-              self.answer = answer;
-            };
-            self.setQuestion = function (question) {
-              self.question = question;
-            };
-            self.setSeriesIdx = function (seriesIdx) {
-              self.seriesIdx = seriesIdx;
-            };
-            self.clrSeriesIdx = function () {
-              self.seriesIdx = -1;
-            };
-
-            self.testQuestionId = function (ques) {
-              var result = false;
-              if (self.answer.question) {
-                result = (self.answer.question._id === ques._id);
-              }
-              return result;
-            };
-            self.procData = function (ans) {
-              var idx,
-                value;
-
-              if (questionFactory.showRankingNumber(self.question.type)) {
-                /* if its a ranking question the answer is the value between min & 
-                    max rank, not the displayed options */
-                idx = parseInt(ans) - self.question.rangeMin;
-              } else {
-                idx = self.question[makeOptionIndexPropertyName(ans)];
-              }
-              if (idx >= 0) {
-                if (self.seriesIdx >= 0) {
-                  value = ++self.question.data[self.seriesIdx][idx];
-                } else {
-                  value = ++self.question.data[idx];
-                }
-                if (value > self.question.maxValue) {
-                  self.question.maxValue = value;
-                }
-              }
-            };
-          };
-        resArray.forEach(function (resId) {
-          list = canvassResultFactory.getList(resId);
-          if (list) {
-            var runnerObj = new procObj(list);
+          ansProcessor = new AnswerProcessor();
+        resLists.forEach(function (res) {
+          if (res.list) {
             // loop through results 
-            list.forEachInList(function (result) {
+            res.list.forEach(function (result) {
               if (result.answers && result.answers.length) {
 
                 // loop thru answers looking for questions from list
                 result.answers.forEach(function (answer) {
-                  runnerObj.setAnswer(answer);
+                  ansProcessor.setAnswer(answer);
 
-                  quesArray.forEach(function (qlist) {
-                    for (start = 0; start >= 0; ++start) {
-                      start = qlist.findIndexInList(runnerObj.testQuestionId, start);
-                      if (start >= 0) {
-                        ques = qlist.getFromList(start);
-                        
+                  quesLists.forEach(function (questionList) {
+                    questionList.list.forEach(function (question) {
+                      if (ansProcessor.testQuestionId(question)) {
                         // set data for options from answer
-                        if (ques) {
-                          if (questionFactory.showQuestionOptions(ques.type)) {
-                            runnerObj.setQuestion(ques);
-                            if (ques.series) {
-                              // only one series for now but ..
-                              runnerObj.setSeriesIdx(ques.series.length - 1);
-                            } else {
-                              runnerObj.clrSeriesIdx();
-                            }
+                        resData = question.resData;
+                        if (questionFactory.showQuestionOptions(question.type)) {
+                          ansProcessor.setQuestion(question);
 
-                            var splits = answer.answer.split(',');
-                            splits.forEach(runnerObj.procData);
-
-                          } else if (questionFactory.showTextInput(ques.type)) {
-                            ques.data.push(answer.answer);
+                          if (resData.series) {
+                            // only one series for now but ..
+                            ansProcessor.setSeriesIdx(resData.series.length - 1);
+                          } else {
+                            ansProcessor.clrSeriesIdx();
                           }
+
+                          var splits = answer.answer.split(',');
+                          splits.forEach(ansProcessor.procData, ansProcessor);
+
+                        } else if (questionFactory.showTextInput(question.type)) {
+                          resData.data.push(answer.answer);
                         }
-                      } else {
-                        break;
                       }
-                    }
+                    });
                   });
                 });
               }
             });
-            
-            quesArray.forEach(function (qlist) {
-              qlist.exeChanged();  // objects in list have changed, trigger listeners 
-            });
           }
         });
-      }                                                          
+      }
     }
   }
 
+  /**
+   * Processor for a aurvey answer's data
+   */
+  function AnswerProcessor () {
+    this.answer = undefined;
+    this.question = undefined;
+    this.seriesIdx = -1;
+
+    this.setAnswer = function (answer) {
+      this.answer = answer;
+    };
+    this.setQuestion = function (question) {
+      this.question = question;
+    };
+    this.setSeriesIdx = function (seriesIdx) {
+      this.seriesIdx = seriesIdx;
+    };
+    this.clrSeriesIdx = function () {
+      this.seriesIdx = -1;
+    };
+
+    this.testQuestionId = function (ques) {
+      var result = false;
+      if (this.answer.question) {
+        result = (this.answer.question._id === ques._id);
+      }
+      return result;
+    };
+    
+    this.procData = function (ans) {
+      var idx,
+        value;
+
+      if (questionFactory.showRankingNumber(this.question.type)) {
+        /* if its a ranking question the answer is the value between min & 
+            max rank, not the displayed options */
+        idx = parseInt(ans) - this.question.rangeMin;
+      } else {
+        idx = this.question.resData[makeOptionIndexPropertyName(ans)];
+      }
+      if (idx >= 0) {
+        if (this.seriesIdx >= 0) {
+          value = ++this.question.resData.data[this.seriesIdx][idx];
+        } else {
+          value = ++this.question.resData.data[idx];
+        }
+        if (value > this.question.resData.maxValue) {
+          this.question.resData.maxValue = value;
+        }
+      }
+    };
+  }
+
+  /**
+   * Make an option index property name
+   * @param   {string} option Option name
+   * @returns {string} property name
+   */
   function makeOptionIndexPropertyName (option) {
     return 'optIdx_' + option;
   }

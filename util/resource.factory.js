@@ -184,6 +184,12 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   }
 
 
+  /**
+   * Create resources
+   * @param   {object} options   Options specifying ids & types
+   * @param   {object} resources Object to add the new resources to
+   * @returns {object} Object updateed with the new resources
+   */
   function createResources (options, resources) {
     var srcId,
       result,
@@ -192,22 +198,22 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
       resources = {};
     }
     args.objId.forEach(function (id) {
-      switch (options.storage) {
+      switch (args.storage) {
         case RESOURCE_CONST.STORE_OBJ:
           if (!srcId) {
-            result = options.factory.newObj(id, storeFactory.CREATE_INIT);
+            result = args.factory.newObj(id, storeFactory.CREATE_INIT);
           } else {
-            result = options.factory.duplicateObj(id, srcId, storeFactory.OVERWRITE);
+            result = args.factory.duplicateObj(id, srcId, storeFactory.OVERWRITE);
           }
           break;
         case RESOURCE_CONST.STORE_LIST:
           if (!srcId) {
-            result = options.factory.newList(id, {
+            result = args.factory.newList(id, {
               title: id,
               flags: storeFactory.CREATE_INIT
             });
           } else {
-            result = options.factory.duplicateList(id, srcId, storeFactory.OVERWRITE);
+            result = args.factory.duplicateList(id, srcId, storeFactory.OVERWRITE);
           }
           break;
         default:
@@ -221,8 +227,8 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
       }
     });
 
-    if (options.subObj) {
-      options.subObj.forEach(function (subObj) {
+    if (args.subObj) {
+      args.subObj.forEach(function (subObj) {
         createResources(subObj, resources);
       });
     }
@@ -342,7 +348,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
       parent, property;
 
     if (args.path) {
-      paths.push(args.path)
+      paths.push(args.path);
     }
     for (parent = args.parent; parent && parent.path; parent = parent.parent) {
       paths.unshift(parent.path);

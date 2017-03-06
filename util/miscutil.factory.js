@@ -23,6 +23,7 @@ function miscUtilFactory () {
     isEmpty: isEmpty,
     isNullOrUndefined: isNullOrUndefined,
     toArray: toArray,
+    findArrayIndex: findArrayIndex,
     arrayPolyfill: arrayPolyfill
   };
   
@@ -125,6 +126,37 @@ function miscUtilFactory () {
     return array;
   }
 
+  /**
+   * Find the index of an entry in an array using the callback function to test each of the entries 
+   * @param {array}    array     array to search
+   * @param {function} predicate function to test entries in array
+   * @param {number}   start     offset to start from
+   */
+  function findArrayIndex (array, predicate, start) {
+
+    if (!Array.isArray(array)) {
+      throw new TypeError('array must be an array');
+    }
+    if (typeof predicate !== 'function') {
+      throw new TypeError('predicate must be a function');
+    }
+    // If argument start was passed let n be ToInteger(start); else let n be 0.
+    var n = +start || 0;
+    if (Math.abs(n) === Infinity) {
+      n = 0;
+    }
+
+    var length = array.length >>> 0;
+
+    for (var i = n; i < length; i++) {
+      if (predicate(array[i], i, array)) {
+        return i;
+      }
+    }
+    return undefined;
+  }
+
+  
   /**
    * Provides polyfill implementations of some Array functions
    * @throws {TypeError} [[Description]]

@@ -411,7 +411,7 @@ ModelProp.prototype.matches = function (args) {
     }
   }
   return (tested && (hits === target));
-}
+};
 
 
 function Schema (SCHEMA_CONST, RESOURCE_CONST, name, modelProps, ids, tag) {
@@ -465,7 +465,7 @@ Schema.prototype.addField = function (dialog, display, model, type, args) {
   }
   this.fields.push(field);
   return (this.fields.length - 1);
-}
+};
 
 /**
  * Add a new entry to the Schema
@@ -509,7 +509,7 @@ Schema.prototype.addFieldFromModelProp = function (dialog, display, id, args) {
   }, this);
 
   return this.addField(dialog, display, modelArray, type, args);
-}
+};
 
 /**
  * Return the schema field with the specified index. 
@@ -529,7 +529,7 @@ Schema.prototype.getField = function (index, property) {
     }
   }
   return result;
-}
+};
 
 /**
  * Callback the specified function for each field in the schema, providing the field details as the callback arguments
@@ -543,7 +543,7 @@ Schema.prototype.forEachField = function (callback) {
       callback(i, this.fields[i]);
     }
   }
-}
+};
 
 /**
  * Return an object representing this schema as a string
@@ -557,7 +557,7 @@ Schema.prototype.objectToString = function (obj) {
     str += field.modelName + '=' + obj[field.modelName];
   });
   return this.name + ' {' + str + '}';
-}
+};
 
 /**
  * Return an initialised object representing this schema
@@ -572,7 +572,7 @@ Schema.prototype.getObject = function () {
     return this.schema.objectToString(this);
   };
   return obj;
-}
+};
 
 /**
  * Return the default value for a field in this schema
@@ -581,15 +581,14 @@ Schema.prototype.getObject = function () {
  * @return {object} modelProp object or property of modelProp object
  */
 Schema.prototype.getModelPropList = function (args) {
-  var i,
-    result = [];
+  var result = [];
   this.modelProps.forEach(function (mdlProp) {
     if (mdlProp.matches(args)) {
       result.push(mdlProp);
     }
   });
   return result;
-}
+};
 
 /**
  * Return the default value for a field in this schema
@@ -610,7 +609,7 @@ Schema.prototype.getModelProp = function (id, property) {
     }
   }
   return value;
-}
+};
 
 /**
  * Return the default value for a field in this schema
@@ -619,7 +618,7 @@ Schema.prototype.getModelProp = function (id, property) {
  */
 Schema.prototype.getDfltValue = function (id) {
   return this.getModelProp(id, 'dfltValue');
-}
+};
 
 /**
  * Return the type for a field in this schema
@@ -628,7 +627,7 @@ Schema.prototype.getDfltValue = function (id) {
  */
 Schema.prototype.getType = function (id) {
   return this.getModelProp(id, 'type');
-}
+};
 
 /**
  * Return the storage type for a field in this schema
@@ -643,7 +642,7 @@ Schema.prototype.getStorageType = function (id) {
     type = this.RESOURCE_CONST.STORE_OBJ;
   }
   return type;
-}
+};
 
 /**
  * Return the model path name for a field in this schema
@@ -652,7 +651,7 @@ Schema.prototype.getStorageType = function (id) {
  */
 Schema.prototype.getModelName = function (id) {
   return this.getModelProp(id, 'modelName');
-}
+};
 
 /**
  * Return the factory name for a field in this schema
@@ -661,7 +660,7 @@ Schema.prototype.getModelName = function (id) {
  */
 Schema.prototype.getModelFactory = function (id) {
   return this.getModelProp(id, 'factory');
-}
+};
 
 /**
  * Read a property and sets its value in an object/array
@@ -704,7 +703,7 @@ Schema.prototype.read = function (from, args) {
     result = this.readProperty(from, objArgs);
   }
   return result;
-}
+};
 
 /**
  * Internal function to determine the schema ids for readProperty
@@ -712,8 +711,7 @@ Schema.prototype.read = function (from, args) {
  * @return {array} ids array
  */
 Schema.prototype._getIdsToRead = function (args) {
-  var i,
-    ids;
+  var ids;
 
   if (!args.schemaReadIds) {
     // no schema ids specified so read all
@@ -743,7 +741,7 @@ Schema.prototype._getIdsToRead = function (args) {
     }
   }
   return ids;
-}
+};
 
 /**
  * Read a property and sets its value in an object
@@ -761,7 +759,8 @@ Schema.prototype.readProperty = function (from, args) {
   var i,
     ids,
     props = (!args.fromProp ? {} : args.fromProp),
-    obj = (!args.obj ? this.getObject() : args.obj);
+    obj = (!args.obj ? this.getObject() : args.obj),
+    searcher = new SearchStdArg(args);
 
   if (args._ids) {
     ids = args._ids;
@@ -778,6 +777,7 @@ Schema.prototype.readProperty = function (from, args) {
       if (property === undefined) {
         property = modelProp.modelName; // same property name in source
       }
+      searcher.setModelProp(modelProp);
 
       // if it has the property read & possibly convert it, otherwise set to undefined
       read = undefined;
@@ -791,9 +791,7 @@ Schema.prototype.readProperty = function (from, args) {
           var factory = args.injector.get(modelProp.factory);
           if (factory.readRspObject) {
             // find specific args if available
-            var readArgs = args.findInStandardArgs(args, function (arg) {
-              return (arg.schemaId === modelProp.id);
-            });
+            var readArgs = searcher.findInStandardArgs();
 
             if (readArgs) {
               // use the appropriate function to read the object(s)
@@ -835,8 +833,23 @@ Schema.prototype.readProperty = function (from, args) {
   console.log('readProperty', args, obj);
 
   return obj;
+};
+
+
+function SearchStdArg (args) {
+  this.args = args;
+  this.modelProp = undefined;
 }
 
-  
-  
+SearchStdArg.prototype.setModelProp = function (modelProp) {
+  this.modelProp = modelProp;
+};
+
+SearchStdArg.prototype.findInStandardArgs = function () {
+  var testFxn = function (arg) {
+    return (arg.schemaId === this.modelProp.id);
+  },
+  boundFxn = testFxn.bind(this);
+  return this.args.findInStandardArgs(this.args, boundFxn);
+};
 

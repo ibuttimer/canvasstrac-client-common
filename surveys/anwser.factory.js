@@ -75,9 +75,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-answerFactory.$inject = ['$resource', '$injector', 'baseURL', 'ANSWERSCHEMA', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'consoleService'];
+answerFactory.$inject = ['$resource', '$injector', 'baseURL', 'SCHEMA_CONST', 'ANSWERSCHEMA', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'consoleService'];
 
-function answerFactory($resource, $injector, baseURL, ANSWERSCHEMA, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, consoleService) {
+function answerFactory($resource, $injector, baseURL, SCHEMA_CONST, ANSWERSCHEMA, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -192,7 +192,7 @@ function answerFactory($resource, $injector, baseURL, ANSWERSCHEMA, storeFactory
     var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
 
     resList.setList([]);
-    getAddresses().query(query).$promise.then(
+    getAnswers().query(query).$promise.then(
       // success function
       function (response) {
         // add indices

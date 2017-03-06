@@ -110,8 +110,9 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
       schema: CANVASSASSIGN_SCHEMA.SCHEMA,
       addInterface: factory // add standard factory functions to this factory
     }),
-    addrCanvsrLinkArgs = [factory.ADDR_CANVSR_LINKCANVASSER, factory.ADDR_CANVSR_LINKADDRESS,
-        factory.ADDR_CANVSR_CANVASSERLIST, factory.ADDR_CANVSR_ADDRESSLIST];
+    addrCanvsrArgs = [factory.ADDR_CANVSR_LINKCANVASSER, factory.ADDR_CANVSR_LINKADDRESS],
+    addrCanvsrListArgs = [factory.ADDR_CANVSR_CANVASSERLIST, factory.ADDR_CANVSR_ADDRESSLIST],
+    addrCanvsrLinkArgs = addrCanvsrArgs.concat(addrCanvsrListArgs);
   
   return factory;
 
@@ -157,9 +158,9 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
     var stdArgs = resourceFactory.standardiseArgs(args),
       object = CANVASSASSIGN_SCHEMA.SCHEMA.read(response, stdArgs);
 
-    canvassFactory.processAddressResultsLink(response, stdArgs);
+    canvassFactory.processAddressResultsLink(object, stdArgs);
 
-    processAddressCanvasserLink(response, stdArgs);
+    processAddressCanvasserLink(object, stdArgs);
 
     con.debug('Read canvass assignment rsp object: ' + object);
 
@@ -178,7 +179,7 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
       addrCanvsrLinkArgs.forEach(function (flag) {
         linkArg[flag] = resourceFactory.findAllInStandardArgs(stdArgs, function (arg) {
           return arg[flag];
-        })
+        });
       });
 
       linkAddressAndCanvasser(linkArg, response, args.linkAddressAndCanvasser.labeller);
@@ -365,68 +366,88 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
     return sortFxn;
   }
 
-
+  /**
+   * Link addresses & canvassers
+   * @throws {Error} for incorrect arguments
+   * @param   {object}   linkArg  Link arguments
+   * @param   {object}   response Data to process
+   * @param   {function} labeller Function to generate label classes
+   */
   function linkAddressAndCanvasser(linkArg, response, labeller) {
     if (linkArg) {
       var i = 0,
-        lists = {};
+        lists = {},
+        addressToLink;
+      // check have all the args
       addrCanvsrLinkArgs.forEach(function (flag) {
         if (linkArg[flag]) {
           ++i;
         }
       });
       if (i === addrCanvsrLinkArgs.length) {
-        // get all objects
-        addrCanvsrLinkArgs.forEach(function (flag) {
-          lists[flag] = [];
-          miscUtilFactory.toArray(linkArg[flag]).forEach(function (objArg) {
-            lists[flag].push(resourceFactory.getObjectInfo(response, objArg).object);
-          });
-        });
+        // response may be an array if query was based on canvass id
+        miscUtilFactory.toArray(response).forEach(function (canvasserAssignment) {
 
-        i = 0;
-        addrCanvsrLinkArgs.forEach(function (flag) {
-          if (lists[flag].length) {
-            ++i;
-          }
-        });
-        if (i === addrCanvsrLinkArgs.length) {
-          // have all the info
-          if (lists[factory.ADDR_CANVSR_LINKCANVASSER].length != 1) {
-            throw new Error('Multiple link canvassers specified');
-          }
-          if (lists[factory.ADDR_CANVSR_LINKADDRESS].length != 1) {
-            throw new Error('Multiple link addresses specified');
-          }
-          var canvasserToLink,
-            addressToLink;
-
-          lists[factory.ADDR_CANVSR_LINKCANVASSER].forEach(function (linkCanvasser) {
-            // find canvasser whose allocation it is in list of assigned canvassers
-            lists[factory.ADDR_CANVSR_CANVASSERLIST].forEach(function (canvasserList) {
-              canvasserToLink = canvasserList.find(function (canvsr) {
-                return (canvsr._id === linkCanvasser._id);
-              });
-              if (canvasserToLink) {
-                lists[factory.ADDR_CANVSR_LINKADDRESS].forEach(function (linkAddressList) {
-                  linkAddressList.forEach(function (linkAddress) {
-                    // find address to link in list of addresses  
-                    lists[factory.ADDR_CANVSR_ADDRESSLIST].forEach(function (addressList) {
-                      addressToLink = addressList.find(function (addr) {
-                        return (addr._id === linkAddress._id);
-                      });
-                      if (addressToLink) {
-                        linkCanvasserToAddr(canvasserToLink, addressToLink, labeller);
-                      }
-                    });
-                  });
-                });
-              }
+          // get the canvasser & address objects
+          addrCanvsrArgs.forEach(function (flag) {
+            lists[flag] = [];
+            miscUtilFactory.toArray(linkArg[flag]).forEach(function (objArg) {
+              lists[flag].push(resourceFactory.getObjectInfo(canvasserAssignment, objArg).object);
             });
           });
-        }
-      }
+          // get the canvasser & address lists
+          addrCanvsrListArgs.forEach(function (flag) {
+            lists[flag] = [];
+            miscUtilFactory.toArray(linkArg[flag]).forEach(function (listArg) {
+              miscUtilFactory.toArray(listArg.objId).forEach(function (objId) {
+                lists[flag].push(listArg.factory.getList(objId));
+              });
+            });
+          });
 
+          // check have all the data
+          i = 0;
+          addrCanvsrLinkArgs.forEach(function (flag) {
+            if (lists[flag].length) {
+              ++i;
+            }
+          });
+          if (i === addrCanvsrLinkArgs.length) {
+            // have all the info i.e. canvasser whose alloc it is and the allocations in the canvass subdoc
+            if (lists[factory.ADDR_CANVSR_LINKCANVASSER].length > 1) {
+              throw new Error('Multiple link canvassers specified');
+            }
+            if (lists[factory.ADDR_CANVSR_LINKADDRESS].length > 1) {
+              throw new Error('Multiple link addresses specified');
+            }
+            var canvasserToLink;
+
+            lists[factory.ADDR_CANVSR_LINKCANVASSER].forEach(function (linkCanvasser) {
+              // find canvasser whose allocation it is in list of assigned canvassers
+              lists[factory.ADDR_CANVSR_CANVASSERLIST].forEach(function (canvasserList) {
+                canvasserToLink = canvasserList.findInList(function (canvsr) {
+                  return (canvsr._id === linkCanvasser._id);
+                });
+                if (canvasserToLink) {
+                  lists[factory.ADDR_CANVSR_LINKADDRESS].forEach(function (linkAddressList) {
+                    linkAddressList.forEach(function (linkAddress) {
+                      // find address to link in list of addresses  
+                      lists[factory.ADDR_CANVSR_ADDRESSLIST].forEach(function (addressList) {
+                        addressToLink = addressList.findInList(function (addr) {
+                          return (addr._id === linkAddress._id);
+                        });
+                        if (addressToLink) {
+                          linkCanvasserToAddr(canvasserToLink, addressToLink, labeller);
+                        }
+                      });
+                    });
+                  });
+                }
+              });
+            });
+          }
+        });
+      }
     }
   }
 
