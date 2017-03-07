@@ -681,26 +681,28 @@ Schema.prototype.read = function (from, args) {
 
   objArgs._ids = this._getIdsToRead(objArgs);
 
-  if (Array.isArray(from)) {
-    // read array of object
-    if (args.obj) {
-      if (!Array.isArray(args.obj)) {
-        throw new Error('Non-array update object argument');
+  if (from) {
+    if (Array.isArray(from)) {
+      // read array of object
+      if (args.obj) {
+        if (!Array.isArray(args.obj)) {
+          throw new Error('Non-array update object argument');
+        }
+        result = args.obj;
+      } else {
+        result = [];
       }
-      result = args.obj;
+      for (i = 0; i < from.length; ++i) {
+        objArgs = angular.copy(args);
+        if (objArgs.obj) {
+          objArgs.obj = objArgs.obj[i]; // update appropriate index
+        }
+        result[i] = this.readProperty(from[i], objArgs);
+      }
     } else {
-      result = [];
+      // read single object
+      result = this.readProperty(from, objArgs);
     }
-    for (i = 0; i < from.length; ++i) {
-      objArgs = angular.copy(args);
-      if (objArgs.obj) {
-        objArgs.obj = objArgs.obj[i]; // update appropriate index
-      }
-      result[i] = this.readProperty(from[i], objArgs);
-    }
-  } else {
-    // read single object
-    result = this.readProperty(from, objArgs);
   }
   return result;
 };
@@ -762,65 +764,66 @@ Schema.prototype.readProperty = function (from, args) {
     obj = (!args.obj ? this.getObject() : args.obj),
     searcher = new SearchStdArg(args);
 
-  if (args._ids) {
-    ids = args._ids;
-  } else {
-    ids = this._getIdsToRead(args);
-  }
-  // read properties
-  for (i = 0; i < ids.length; ++i) {
-    // find model property corrsponding to id
-    var modelProp = this.getModelProp(ids[i]);
-    if (modelProp) {
-      var property = props[ids[i]],
-        read;
-      if (property === undefined) {
-        property = modelProp.modelName; // same property name in source
-      }
-      searcher.setModelProp(modelProp);
+  if (from) {
+    if (args._ids) {
+      ids = args._ids;
+    } else {
+      ids = this._getIdsToRead(args);
+    }
+    // read properties
+    for (i = 0; i < ids.length; ++i) {
+      // find model property corrsponding to id
+      var modelProp = this.getModelProp(ids[i]);
+      if (modelProp) {
+        var property = props[ids[i]],
+          read;
+        if (property === undefined) {
+          property = modelProp.modelName; // same property name in source
+        }
+        searcher.setModelProp(modelProp);
 
-      // if it has the property read & possibly convert it, otherwise set to undefined
-      read = undefined;
-      if (from.hasOwnProperty(property)) {
-        read = from[property];
+        // if it has the property read & possibly convert it, otherwise set to undefined
+        read = undefined;
+        if (from.hasOwnProperty(property)) {
+          read = from[property];
 
-        /* need to pass run stage injector to Schema object as since it is created during the config
-          stage it only has access to the config stage injector (only providers and constants accessible) */
-        if (modelProp.factory && args.injector) {
-          // process it through the appropriate factory
-          var factory = args.injector.get(modelProp.factory);
-          if (factory.readRspObject) {
-            // find specific args if available
-            var readArgs = searcher.findInStandardArgs();
+          /* need to pass run stage injector to Schema object as since it is created during the config
+            stage it only has access to the config stage injector (only providers and constants accessible) */
+          if (modelProp.factory && args.injector) {
+            // process it through the appropriate factory
+            var factory = args.injector.get(modelProp.factory);
+            if (factory.readRspObject) {
+              // find specific args if available
+              var readArgs = searcher.findInStandardArgs();
 
-            if (readArgs) {
-              // use the appropriate function to read the object(s)
-              readArgs = angular.copy(readArgs);
-              // don't need schema/schemaId/path as its read as a root object from here
-              delete readArgs.schema;
-              delete readArgs.schemaId;
-              delete readArgs.path;
+              if (readArgs) {
+                // use the appropriate function to read the object(s)
+                readArgs = angular.copy(readArgs);
+                // don't need schema/schemaId/path as its read as a root object from here
+                delete readArgs.schema;
+                delete readArgs.schemaId;
+                delete readArgs.path;
 
-              if (Array.isArray(read)) {
-                for (var ridx = 0; ridx < read.length; ++ridx) {
-                  readArgs.obj = read[ridx];   // inplace update
-                  console.log('factory.readRspObject', ridx, readArgs.objId[0]);
-                  factory.readRspObject(read[ridx], readArgs);
+                if (Array.isArray(read)) {
+                  for (var ridx = 0; ridx < read.length; ++ridx) {
+                    readArgs.obj = read[ridx];   // inplace update
+                    console.log('factory.readRspObject', ridx, readArgs.objId[0]);
+                    factory.readRspObject(read[ridx], readArgs);
+                  }
+                } else {
+                  read = factory.readRspObject(read, readArgs);
                 }
-              } else {
-                read = factory.readRspObject(read, readArgs);
-              }
-            } // else no specific args will set read value
+              } // else no specific args will set read value
+            }
+          }
+          if (args.convert) {
+            read = args.convert(modelProp.id, read);
           }
         }
-        if (args.convert) {
-          read = args.convert(modelProp.id, read);
-        }
+        obj[modelProp.modelName] = read;
       }
-      obj[modelProp.modelName] = read;
     }
   }
-
   if (args.schemaPruneIds) {
     args.schemaPruneIds.forEach(function (id) {
       var modelName = this.getModelName(id);

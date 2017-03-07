@@ -323,19 +323,25 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     if (quesArgs && resultArgs) {
       var quesLists = [],
         resLists = [],
-        i, resData;
+        i, resData, obj;
 
       miscUtilFactory.toArray(quesArgs).forEach(function (quesArg) {
-        quesLists.push({
-          list: resourceFactory.getObjectInfo(response, quesArg).object,  // questions array
-          factory: quesArg.factory                                // factory to handle them
-        });
+        obj = resourceFactory.getObjectInfo(response, quesArg).object;
+        if (obj) {
+          quesLists.push({
+            list: obj,                // questions array
+            factory: quesArg.factory  // factory to handle them
+          });
+        }
       });
       miscUtilFactory.toArray(resultArgs).forEach(function (resArg) {
-        resLists.push({
-          list: resourceFactory.getObjectInfo(response, resArg).object,
-          getChartType: (resArg.customArgs ? resArg.customArgs.getChartType : undefined)
-        });
+        obj = resourceFactory.getObjectInfo(response, resArg).object;
+        if (obj) {
+          resLists.push({
+            list: obj,  // results array
+            getChartType: (resArg.customArgs ? resArg.customArgs.getChartType : undefined)
+          });
+        }
       });
 
       if (quesLists.length && resLists.length) {
@@ -592,6 +598,5 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
   function storeId (id) {
     return CANVASSSCHEMA.ID_TAG + id;
   }
-
 }
 

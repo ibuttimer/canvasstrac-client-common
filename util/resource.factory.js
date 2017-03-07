@@ -291,17 +291,17 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
       });
     }
 
-    if (stdArgs.storage === RESOURCE_CONST.STORE_LIST) {
-      asList = true;
-    } else if (stdArgs.storage === RESOURCE_CONST.STORE_OBJ) {
-      asList = false;
-    } else {
-      asList = Array.isArray(toSave);
-    }
-
     resp = toSave;  // default result is raw object
 
     if (idArray.length) {
+      if (stdArgs.storage === RESOURCE_CONST.STORE_LIST) {
+        asList = true;
+      } else if (stdArgs.storage === RESOURCE_CONST.STORE_OBJ) {
+        asList = false;
+      } else {
+        asList = Array.isArray(toSave);
+      }
+
       if (asList) {
         // process a query response
         if (toSave) {
@@ -384,7 +384,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
     var stdArgs = standardiseArgs(args, parent),
       factory = stdArgs.factory,
-      resp,
+      resp, list,
       toSaveInfo = getObjectInfo(response, stdArgs),
       toSave = toSaveInfo.object;
 
@@ -399,8 +399,15 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
       } else if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID_ARRAY(stdArgs.type)) {
         // field is an array of objectId
-        for (var i = 0; i < toSave.length; ++i) {
-          toSave[i] = resp.list[i]._id;
+        if (Array.isArray(toSave)) {
+          if (resp.toString().indexOf('ResourceList') === 0) {
+            list = resp.list; // its a ResourceList
+          } else {
+            list = resp;  // should be an raw array
+          }
+          for (var i = 0; i < toSave.length; ++i) {
+            toSave[i] = list[i]._id;
+          }
         }
       }
     }

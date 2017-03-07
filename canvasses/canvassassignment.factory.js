@@ -385,7 +385,7 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
         }
       });
       if (i === addrCanvsrLinkArgs.length) {
-        // response may be an array if query was based on canvass id
+        // response may be an array depending on query params
         miscUtilFactory.toArray(response).forEach(function (canvasserAssignment) {
 
           // get the canvasser & address objects
@@ -414,36 +414,48 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
           });
           if (i === addrCanvsrLinkArgs.length) {
             // have all the info i.e. canvasser whose alloc it is and the allocations in the canvass subdoc
-            if (lists[factory.ADDR_CANVSR_LINKCANVASSER].length > 1) {
+            var canvasserToLink,
+              linkCanvasserData = lists[factory.ADDR_CANVSR_LINKCANVASSER],
+              linkAddressData = lists[factory.ADDR_CANVSR_LINKADDRESS],
+              linkCanvasserListData = lists[factory.ADDR_CANVSR_CANVASSERLIST],
+              linkAddressListData = lists[factory.ADDR_CANVSR_ADDRESSLIST];
+            if (linkCanvasserData.length > 1) {
               throw new Error('Multiple link canvassers specified');
             }
-            if (lists[factory.ADDR_CANVSR_LINKADDRESS].length > 1) {
+            if (linkAddressData.length > 1) {
               throw new Error('Multiple link addresses specified');
             }
-            var canvasserToLink;
 
-            lists[factory.ADDR_CANVSR_LINKCANVASSER].forEach(function (linkCanvasser) {
-              // find canvasser whose allocation it is in list of assigned canvassers
-              lists[factory.ADDR_CANVSR_CANVASSERLIST].forEach(function (canvasserList) {
-                canvasserToLink = canvasserList.findInList(function (canvsr) {
-                  return (canvsr._id === linkCanvasser._id);
-                });
-                if (canvasserToLink) {
-                  lists[factory.ADDR_CANVSR_LINKADDRESS].forEach(function (linkAddressList) {
-                    linkAddressList.forEach(function (linkAddress) {
-                      // find address to link in list of addresses  
-                      lists[factory.ADDR_CANVSR_ADDRESSLIST].forEach(function (addressList) {
-                        addressToLink = addressList.findInList(function (addr) {
-                          return (addr._id === linkAddress._id);
-                        });
-                        if (addressToLink) {
-                          linkCanvasserToAddr(canvasserToLink, addressToLink, labeller);
-                        }
-                      });
-                    });
+            linkCanvasserData.forEach(function (linkCanvasser) {
+              if (linkCanvasser) {
+                // find canvasser whose allocation it is in list of assigned canvassers
+                linkCanvasserListData.forEach(function (canvasserList) {
+                  canvasserToLink = canvasserList.findInList(function (canvsr) {
+                    return (canvsr._id === linkCanvasser._id);
                   });
-                }
-              });
+                  if (canvasserToLink) {
+
+                    // save id of canvasser's allocation record
+                    canvasserToLink.allocId = canvasserAssignment._id;
+
+                    linkAddressData.forEach(function (linkAddressList) {
+                      if (linkAddressList) {
+                        linkAddressList.forEach(function (linkAddress) {
+                          // find address to link in list of addresses  
+                          linkAddressListData.forEach(function (addressList) {
+                            addressToLink = addressList.findInList(function (addr) {
+                              return (addr._id === linkAddress._id);
+                            });
+                            if (addressToLink) {
+                              linkCanvasserToAddr(canvasserToLink, addressToLink, labeller);
+                            }
+                          });
+                        });
+                      }
+                    });
+                  }
+                });
+              }
             });
           }
         });
