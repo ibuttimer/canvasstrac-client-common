@@ -665,12 +665,8 @@ Schema.prototype.getModelFactory = function (id) {
 /**
  * Read a property and sets its value in an object/array
  * @param {object} from     - source to read properties from
- * @param {object} args     - arguments object with following properties
- *    {object} obj      - object to update, or if null/undefined a new object is created
- *    {object} schemaReadIds - schema id/array of schema id(s) to read, or if null/undefined all schema fields are read
- *    {boolean} schemaExcludeMode - schema id(s) are ids to exclude 
- *    {object} fromProp - object ({schema id}, {string}), specifying the property names to read from response for schema ids
- *    {object} convert  - function({schema id}, {value}) to convert read values
+ * @param {object} args     - arguments object
+ *  @see readProperty() for properties
  * @return updated/new object
  */
 Schema.prototype.read = function (from, args) {
@@ -749,9 +745,10 @@ Schema.prototype._getIdsToRead = function (args) {
  * Read a property and sets its value in an object
  * @param {object} from     - source to read properties from
  * @param {object} args     - arguments object with following properties
- *    {object} obj      - object to update, or if null/undefined a new object is created
- *    {object} schemaReadIds - schema id/array of schema id(s) to read, or if null/undefined all schema fields are read
+ *    {object} obj          - object to update, or if null/undefined a new object is created
+ *    {number|array} schemaReadIds - schema id/array of schema id(s) to read, or if null/undefined all schema fields are read
  *    {boolean} schemaExcludeMode - schema id(s) are ids to exclude 
+ *    {number|array} schemaPruneIds - schema id/array of schema id(s) to remove from final object
  *    {object} fromProp - object ({schema id}, {string}), specifying the property names to read from response for schema ids
  *    {object} convert  - function({schema id}, {value}) to convert read values
  * @return updated/new object

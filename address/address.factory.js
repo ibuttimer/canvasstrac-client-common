@@ -102,7 +102,6 @@ angular.module('ct.clientCommon')
       });
   })
 
-
   .filter('filterAddr', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
 
     function filterAddrFilter (input, schema, filterBy) {
@@ -224,7 +223,13 @@ function addressFactory($resource, $filter, $injector, baseURL, consoleService, 
     return object;
   }
 
-
+  /**
+   * Create storeFactory id
+   * @param {string}   id   Factory id to generate storeFactory id from
+   */
+  function storeId(id) {
+    return ADDRSCHEMA.ID_TAG + id;
+  }
 
   function getFilteredResource (resList, filter, success, failure, forEachSchemaField) {
     
@@ -265,10 +270,6 @@ function addressFactory($resource, $filter, $injector, baseURL, consoleService, 
     );
   }
   
-  function storeId (id) {
-    return ADDRSCHEMA.ID_TAG + id;
-  }
-
   function setFilter (id, filter, flags) {
     if (!filter) {
       filter = newFilter();

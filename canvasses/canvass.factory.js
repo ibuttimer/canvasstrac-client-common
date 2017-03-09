@@ -93,15 +93,33 @@ angular.module('ct.clientCommon')
     });
   })
 
+  .filter('filterCanvass', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
+
+    function filterCanvassFilter(input, schema, filterBy) {
+
+      // canvass specific filter function
+      var out = [];
+
+      //if (!miscUtilFactory.isEmpty(filterBy)) {
+      // TODO canvass specific filter function
+      //} else {
+      out = input;
+      //}
+      return out;
+    }
+
+    return filterCanvassFilter;
+  }])
+
   .factory('canvassFactory', canvassFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassFactory.$inject = ['$resource', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'surveyFactory', 'questionFactory',
+canvassFactory.$inject = ['$resource', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory', 'questionFactory',
   'addressFactory', 'electionFactory', 'userFactory', 'canvassResultFactory', 'SCHEMA_CONST', 'CANVASSSCHEMA', 'SURVEYSCHEMA', 'RESOURCE_CONST', 'CHARTS', 'consoleService'];
-function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFactory, miscUtilFactory, surveyFactory, questionFactory,
+function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFactory, filterFactory, miscUtilFactory, surveyFactory, questionFactory,
   addressFactory, electionFactory, userFactory, canvassResultFactory, SCHEMA_CONST, CANVASSSCHEMA, SURVEYSCHEMA, RESOURCE_CONST, CHARTS, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
@@ -110,6 +128,15 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
       getCanvasses: getCanvasses,
       readRspObject: readRspObject,
       readResponse: readResponse,
+
+      setFilter: setFilter,
+      newFilter: newFilter,
+      getFilteredList: getFilteredList,
+      forEachSchemaField: forEachCanvassSchemaField,
+      getSortOptions: getSortOptions,
+      getSortFunction: getSortFunction,
+      getFilteredResource: getFilteredResource,
+
       storeRspObject: storeRspObject,
       setLabeller: setLabeller,
       linkCanvasserToAddr: linkCanvasserToAddr,
@@ -283,34 +310,40 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     * Link addresses to canvass results
     * @param {object|Array} addrArgs    arg object/array of arg objects of addresses
     * @param {object|Array} resultsId   arg object/array of arg objects of results
+    * @param {object} response          object to read data from
     */
   function linkAddressAndResults (addrArgs, resultArgs, response) {
     if (addrArgs && resultArgs) {
-      var addresses = [],
+      var addresses,
+        results;
+
+      miscUtilFactory.toArray(response).forEach(function (rsp) {
+        addresses = [];
         results = [];
 
-      miscUtilFactory.toArray(addrArgs).forEach(function (addrArg) {
-        addresses.push(resourceFactory.getObjectInfo(response, addrArg).object);
-      });
-      miscUtilFactory.toArray(resultArgs).forEach(function (resArg) {
-        results.push(resourceFactory.getObjectInfo(response, resArg).object);
-      });
+        miscUtilFactory.toArray(addrArgs).forEach(function (addrArg) {
+          addresses.push(resourceFactory.getObjectInfo(rsp, addrArg).object);
+        });
+        miscUtilFactory.toArray(resultArgs).forEach(function (resArg) {
+          results.push(resourceFactory.getObjectInfo(rsp, resArg).object);
+        });
 
-      if (addresses.length && results.length) {
-        results.forEach(function (result) {
-          result.forEach(function (resObj) {
-            addresses.forEach(function (address) {
-              var addr = address.find(function (entry) {
-                return (entry._id === resObj.address._id);
+        if (addresses.length && results.length) {
+          results.forEach(function (result) {
+            result.forEach(function (resObj) {
+              addresses.forEach(function (address) {
+                var addr = address.find(function (entry) {
+                  return (entry._id === resObj.address._id);
+                });
+                if (addr) {
+                  // link address and canvass result
+                  addr.canvassResult = resObj._id;
+                }
               });
-              if (addr) {
-                // link address and canvass result
-                addr.canvassResult = resObj._id;
-              }
             });
           });
-        });
-      }
+        }
+      });
     }
   }
 
@@ -318,6 +351,7 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     * Link questions to canvass results
     * @param {object|Array} quesArgs    arg object/array of arg objects of questions
     * @param {object|Array} resultsId   arg object/array of arg objects of results
+    * @param {object} response          object to read data from
     */
   function linkQuestionAndResults (quesArgs, resultArgs, response) {
     if (quesArgs && resultArgs) {
@@ -598,5 +632,106 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
   function storeId (id) {
     return CANVASSSCHEMA.ID_TAG + id;
   }
+
+  function getFilteredResource (resList, filter, success, failure, forEachSchemaField) {
+    
+    filter = filter || newFilter();
+
+    if (typeof filter === 'function') {
+      forEachSchemaField = failure;
+      failure = success;
+      filter = newFilter();
+    }
+    if (!forEachSchemaField) {
+      forEachSchemaField = forEachCanvassSchemaField;
+    }
+
+    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
+
+    resList.setList([]);
+    getCanvasses().query(query).$promise.then(
+      // success function
+      function (response) {
+        // add indices
+        for (var i = 0; i < response.length; ++i) {
+          response[i].index = i + 1;
+        }
+        // response from server contains result of filter request
+        resList.setList(response, storeFactory.APPLY_FILTER);
+
+        if (success){
+          success(response);
+        }
+      },
+      // error function
+      function (response) {
+        if (failure){
+          failure(response);
+        }
+      }
+    );
+  }
+
+  function setFilter (id, filter, flags) {
+    if (!filter) {
+      filter = newFilter();
+    }
+    return resourceFactory.setFilter(storeId(id), filter, flags);
+  }
+
+  function getSortOptions () {
+    return CANVASSSCHEMA.SORT_OPTIONS;
+  }
+
+  function forEachCanvassSchemaField (callback) {
+    CANVASSSCHEMA.SCHEMA.forEachField(callback);
+  }
+  
+  function newFilter (base, customFilter) {
+    if (!customFilter) {
+      customFilter = filterFunction;
+    }
+    var filter = filterFactory.newResourceFilter(CANVASSSCHEMA.SCHEMA, base);
+    filter.customFunction = customFilter;
+    return filter;
+  }
+  
+  /**
+   * Generate a filtered list
+   * @param {object}   reslist    Address ResourceList object to filter
+   * @param {object}   filter     filter to apply
+   * @param {function} xtraFilter Function to provide additional filtering
+   * @returns {Array}    filtered list
+   */
+  function getFilteredList (reslist, filter, xtraFilter) {
+    // canvass specific filter function
+    return filterFactory.getFilteredList('filterCanvass', reslist, filter, xtraFilter);
+  }
+  
+  function filterFunction (addrList, filter) {
+    // canvass specific filter function
+    addrList.filterList = getFilteredList(addrList, filter);
+  }
+  
+  
+  function getSortFunction (options, sortBy) {
+    var sortFxn = resourceFactory.getSortFunction(options, sortBy);
+    if (typeof sortFxn === 'object') {
+      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
+      if (sortItem.idTag === CANVASSSCHEMA.ID_TAG) {
+        switch (sortItem.index) {
+          //case CANVASSSCHEMA.CANVASS_NAME_IDX:
+          //  sortFxn = compareAddress;
+          //  break;
+          default:
+            sortFxn = undefined;
+            break;
+        }
+      }
+    }
+    return sortFxn;
+  }
+
+
 }
 

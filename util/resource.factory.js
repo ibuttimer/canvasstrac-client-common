@@ -64,6 +64,8 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     storeServerRsp: storeServerRsp,
     storeSubDoc: storeSubDoc,
     standardiseArgs: standardiseArgs,
+    getStandardArgsObject: getStandardArgsObject,
+    checkStandardArgsObjectArgs: checkStandardArgsObjectArgs,
     findInStandardArgs: findInStandardArgs,
     findAllInStandardArgs: findAllInStandardArgs,
     addResourcesToArgs: addResourcesToArgs,
@@ -451,6 +453,79 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     }
 
     return stdArgs;
+  }
+
+  /**
+   * Return a standard args object
+   * @param {string|array} objId  Id(s) to use for storage
+   * @param {string} factory      Factory name
+   * @param {array} subObj        Sub-objects
+   * @param {object} schema       Schema object
+   * @param {number} flags        storeFactory flags
+   * @param {function} next       Function to call following completion
+   * @param {object} custom       Custom properties
+   * @returns {object} Standard args object
+   */
+  function getStandardArgsObject (objId, factory, subObj, schema, flags, next, custom) {
+    var args = checkStandardArgsObjectArgs(factory, subObj, schema, flags, next, custom);
+    return {
+      objId: objId,
+      factory: args.factory,
+      schema: args.schema.schema,
+      schemaId: args.schema.schemaId,
+      //type/path/storage/factory: can be retrieved using schema & schemaId
+      subObj: args.subObj,
+      flags: args.flags,
+      next: args.next,
+      customArgs: args.custom
+    };
+  }
+
+  /**
+   * Check arguemnts for getRspOptionsObject() making sure args are correctly positioned
+   * @param {string} factory      Factory name
+   * @param {array} subObj        Sub-objects
+   * @param {object} schema       Schema object
+   * @param {number} flags        storeFactory flags
+   * @param {function} next       Function to call following completion
+   * @param {object} custom       Custom properties
+   * @returns {object} args object
+   */
+  function checkStandardArgsObjectArgs(factory, subObj, schema, flags, next, custom) {
+    if (!angular.isString(factory)) {
+      custom = next;
+      next = flags;
+      flags = schema;
+      schema = subObj;
+      subObj = factory;
+      factory = undefined;
+    }
+    if (!angular.isArray(subObj)) {
+      custom = next;
+      next = flags;
+      flags = schema;
+      schema = subObj;
+      subObj = undefined;
+    }
+    if (!angular.isObject(schema)) {
+      custom = next;
+      next = flags;
+      flags = schema;
+      schema = {};
+    }
+    if (!angular.isNumber(flags)) {
+      custom = next;
+      next = flags;
+      flags = storeFactory.NOFLAG;
+    }
+    if (!angular.isFunction(next)) {
+      custom = next;
+      next = undefined;
+    }
+    return {
+      factory: factory, schema: schema, subObj: subObj,
+      flags: flags, next: next, custom: custom
+    };
   }
 
   /**
@@ -1254,6 +1329,11 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     this.sortBy = undefined;  // sort by option
     this.onChange = [];       // functions to be executed when contents are changed
   }
+
+  /**
+   * Identify this object as a REsourceList
+   */
+  ResourceList.prototype.isResourceList = true;
 
   /**
    * Set the base list
