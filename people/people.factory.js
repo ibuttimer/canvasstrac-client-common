@@ -7,29 +7,45 @@ angular.module('ct.clientCommon')
   .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'FNAME', modelName: 'firstname', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'LNAME', modelName: 'lastname', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'NOTE', modelName: 'note', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'ADDR', modelName: 'address', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'CONTACT', modelName: 'contactDetails', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'OWNER', modelName: 'owner', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID }
+      SCHEMA_CONST.ID,
+      {
+        field: 'FNAME', modelName: 'firstname',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'LNAME', modelName: 'lastname',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'NOTE', modelName: 'note',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'ADDR', modelName: 'address',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+      },
+      {
+        field: 'CONTACT', modelName: 'contactDetails',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+      },
+      {
+        field: 'OWNER', modelName: 'owner',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+      }
     ],
       ids = {},
       modelProps = [];
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      modelProps.push({
-        id: i,
-        modelName: details[i].modelName,
-        dfltValue: details[i].dfltValue,
-        type: details[i].type
-      });
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      modelProps.push(schemaProvider.getModelPropObject(args));
     }
 
     var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('people'),
-      schema = schemaProvider.getSchema('Person', modelProps, ID_TAG),
+      schema = schemaProvider.getSchema('Person', modelProps, ids, ID_TAG),
       PEOPLE_FNAME_IDX =
         schema.addFieldFromModelProp('fname', 'Firstname', ids.FNAME),
       PEOPLE_LNAME_IDX =

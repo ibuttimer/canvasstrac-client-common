@@ -7,16 +7,41 @@ angular.module('ct.clientCommon')
   .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'NAME', modelName: 'name', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'DESCRIPTION', modelName: 'description', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'STARTDATE', modelName: 'startDate', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE },
-      { field: 'ENDDATE', modelName: 'endDate', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE },
-      { field: 'ELECTION', modelName: 'election', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'SURVEY', modelName: 'survey', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'ADDRESSES', modelName: 'addresses', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY },
-      { field: 'CANVASSERS', modelName: 'canvassers', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY },
-      { field: 'RESULTS', modelName: 'results', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY }
+      SCHEMA_CONST.ID,
+      {
+        field: 'NAME', modelName: 'name',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      { field: 'DESCRIPTION', modelName: 'description', 
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
+      {
+        field: 'STARTDATE', modelName: 'startDate',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE
+      },
+      {
+        field: 'ENDDATE', modelName: 'endDate',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE
+      },
+      {
+        field: 'ELECTION', modelName: 'election', factory: 'electionFactory',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+      },
+      {
+        field: 'SURVEY', modelName: 'survey', factory: 'surveyFactory',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+      },
+      {
+        field: 'ADDRESSES', modelName: 'addresses', factory: 'addressFactory',
+        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
+      },
+      {
+        field: 'CANVASSERS', modelName: 'canvassers', factory: 'userFactory',
+        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
+      },
+      {
+        field: 'RESULTS', modelName: 'results', factory: 'canvassResultFactory',
+        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
+      }
     ],
       ids = {},
       modelProps = [],
@@ -24,16 +49,14 @@ angular.module('ct.clientCommon')
 
     for (i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      modelProps.push({
-        id: i,
-        modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue,
-        type: details[i].type
-      });
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      modelProps.push(schemaProvider.getModelPropObject(args));
     }
 
     var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('canvass'),
-      schema = schemaProvider.getSchema('Canvass', modelProps, ID_TAG),
+      schema = schemaProvider.getSchema('Canvass', modelProps, ids, ID_TAG),
       CANVASS_NAME_IDX =
         schema.addFieldFromModelProp('name', 'Name', ids.NAME),
       CANVASS_DESCRIPTION_IDX =
@@ -70,30 +93,63 @@ angular.module('ct.clientCommon')
     });
   })
 
+  .filter('filterCanvass', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
+
+    function filterCanvassFilter(input, schema, filterBy) {
+
+      // canvass specific filter function
+      var out = [];
+
+      //if (!miscUtilFactory.isEmpty(filterBy)) {
+      // TODO canvass specific filter function
+      //} else {
+      out = input;
+      //}
+      return out;
+    }
+
+    return filterCanvassFilter;
+  }])
+
   .factory('canvassFactory', canvassFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassFactory.$inject = ['$resource', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'surveyFactory', 'questionFactory',
+canvassFactory.$inject = ['$resource', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory', 'questionFactory',
   'addressFactory', 'electionFactory', 'userFactory', 'canvassResultFactory', 'SCHEMA_CONST', 'CANVASSSCHEMA', 'SURVEYSCHEMA', 'RESOURCE_CONST', 'CHARTS', 'consoleService'];
-function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFactory, miscUtilFactory, surveyFactory, questionFactory,
+function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFactory, filterFactory, miscUtilFactory, surveyFactory, questionFactory,
   addressFactory, electionFactory, userFactory, canvassResultFactory, SCHEMA_CONST, CANVASSSCHEMA, SURVEYSCHEMA, RESOURCE_CONST, CHARTS, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'canvassFactory',
       getCanvasses: getCanvasses,
-      getCanvassAllocation: getCanvassAllocation,
       readRspObject: readRspObject,
-      readCanvassRsp: readCanvassRsp,
+      readResponse: readResponse,
+
+      setFilter: setFilter,
+      newFilter: newFilter,
+      getFilteredList: getFilteredList,
+      forEachSchemaField: forEachCanvassSchemaField,
+      getSortOptions: getSortOptions,
+      getSortFunction: getSortFunction,
+      getFilteredResource: getFilteredResource,
+
       storeRspObject: storeRspObject,
-      readCanvassAllocationRsp: readCanvassAllocationRsp,
       setLabeller: setLabeller,
       linkCanvasserToAddr: linkCanvasserToAddr,
       unlinkAddrFromCanvasser: unlinkAddrFromCanvasser,
-      unlinkAddrListFromCanvasser: unlinkAddrListFromCanvasser
+      unlinkAddrListFromCanvasser: unlinkAddrListFromCanvasser,
+
+      processAddressResultsLink: processAddressResultsLink,
+      ADDR_RES_LINKADDRESS: 'addrResLinkAddr',  // link address flag for linking addresses & results
+      ADDR_RES_LINKRESULT: 'addrResLinkRes',    // link result flag for linking addresses & results
+
+      QUES_RES_LINKQUES: 'quesResLinkQues', // link results flag for linking questions & results
+      QUES_RES_LINKRES: 'quesResLinkRes'    // link results flag for linking questions & results
+
     },
     con = consoleService.getLogger(factory.NAME),
     labeller,
@@ -111,25 +167,7 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
   function getCanvasses () {
     return resourceFactory.getResources('canvasses');
   }
-  
-  function getCanvassAllocation () {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
 
-      add custom update & multiple save methods
-    */
-    return $resource(baseURL + 'canvassassignment/:id', {id:'@id'},
-                      {'update': {method: 'PUT'},
-                       'saveMany': {method: 'POST', isArray: true}
-                      });
-  }
-  
-  
   /**
    * Read a server response canvass object
    * @param {object} response   Server response
@@ -144,12 +182,58 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     if (!args.convert) {
       args.convert = readRspObjectValueConvert;
     }
-    var canvass = CANVASSSCHEMA.SCHEMA.readProperty(response, args);
+    // add resources required by Schema object
+    resourceFactory.addResourcesToArgs(args);
 
-    con.debug('Read canvass rsp object: ' + canvass);
+    var stdArgs = resourceFactory.standardiseArgs(args),
+      object = CANVASSSCHEMA.SCHEMA.read(response, stdArgs);
 
-    return canvass;
+    processAddressResultsLink(response, stdArgs);
+    processQuestionResultsLink(response, stdArgs);
+
+    con.debug('Read canvass rsp object: ' + object);
+
+    return object;
   }
+
+  /**
+   * Process the linking of addresses and results
+   * @param {object} response   Server response
+   * @param {object} args       arguments object
+   */
+  function processAddressResultsLink (response, args) {
+    if (args.linkAddressAndResult) {
+      var stdArgs = resourceFactory.standardiseArgs(args),
+        addr = resourceFactory.findAllInStandardArgs(stdArgs, function (arg) {
+          return arg[factory.ADDR_RES_LINKADDRESS];
+        }),
+        result = resourceFactory.findAllInStandardArgs(stdArgs, function (arg) {
+          return arg[factory.ADDR_RES_LINKRESULT];
+        });
+        
+      linkAddressAndResults(addr, result, response);
+    }
+  }
+
+  /**
+   * Process the linking of questions and results
+   * @param {object} response   Server response
+   * @param {object} args       arguments object
+   */
+  function processQuestionResultsLink (response, args) {
+    if (args.linkQuestionAndResult) {
+      var stdArgs = resourceFactory.standardiseArgs(args),
+        ques = resourceFactory.findAllInStandardArgs(stdArgs, function (arg) {
+          return arg[factory.QUES_RES_LINKQUES];
+        }),
+        result = resourceFactory.findAllInStandardArgs(stdArgs, function (arg) {
+          return arg[factory.QUES_RES_LINKRES];
+        });
+
+      linkQuestionAndResults(ques, result, response);
+    }
+  }
+
 
   /**
    * Convert values read from a server canvass response
@@ -162,12 +246,6 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
       case CANVASSSCHEMA.IDs.STARTDATE:
       case CANVASSSCHEMA.IDs.ENDDATE:
         value = new Date(value);
-        break;
-      case CANVASSSCHEMA.IDs.ELECTION:
-        value = electionFactory.readRspObject(value);
-        break;
-      case CANVASSSCHEMA.IDs.SURVEY:
-        value = surveyFactory.readRspObject(value);
         break;
       default:
         // other fields require no conversion
@@ -191,10 +269,10 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
    *    @see storeRspObject() for details
    * @return {object}   Canvass ResourceList object
    */
-  function readCanvassRsp (response, args) {
+  function readResponse (response, args) {
 
-    var canvass = readRspObject(response);
-    return storeRspObject(canvass, args);
+    var object = readRspObject(response, args);
+    return storeRspObject(object, args);
   }
 
   /**
@@ -206,38 +284,16 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
    */
   function storeRspObject (obj, args) {
 
-    var subObjects, i, stdArgs,
-      getModelName = CANVASSSCHEMA.SCHEMA.getModelName,
-      addrArgs, addrPath = getModelName(CANVASSSCHEMA.IDs.ADDRESSES),
-      resultArgs, resultPath = getModelName(CANVASSSCHEMA.IDs.RESULTS),
-      surveyArgs, surveyPath = getModelName(CANVASSSCHEMA.IDs.SURVEY);
-    
+    var subObjects, i, stdArgs;
+
     // store sub objects first
     if (args.subObj) {
       subObjects = miscUtilFactory.toArray(args.subObj);
       for (i = 0; i < subObjects.length; ++i) {
         stdArgs = resourceFactory.standardiseArgs(subObjects[i]);
 
-        if (stdArgs.path === addrPath) {
-          addrArgs = stdArgs;
-        } else if (stdArgs.path === resultPath) {
-          resultArgs = stdArgs;
-        } else if (stdArgs.path === surveyPath) {
-          surveyArgs = stdArgs;
-        }
-        
         resourceFactory.storeSubDoc(obj, stdArgs, args);
       }
-      
-      // TODO come up with method of generalising the linking of fields
-      // cringe!!!
-      if (addrArgs && resultArgs) {
-        linkAddrListAndResults(resultArgs.objId, addrArgs.objId);
-      }
-      if (surveyArgs && resultArgs) {
-        linkQuestionsAndResults(resultArgs, surveyArgs);
-      }
-      
     }
 
     con.debug('Store canvass response: ' + obj);
@@ -251,378 +307,231 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
   }
 
   /**
-   * Read a canvass allocation response from the server
-   * @param {object}   response   Server response
-   * @param {object}   args       process arguments object with following properties
-   *    {string} addrId       id of list object to save address data to
-   *    {string} userId       id of list object to save canvasser data to
-   *    {number} flags        storefactory flags
-   *    {function} labeller   function to return a class for a label
-   *    {object} canvassArgs  arguments to process embedded canvass sub doc, 
-   *                          @see storeRspObject() for details
-   *    {function} next       function to call after processing
-   * @return {object}   Canvass object
-   */
-  function readCanvassAllocationRsp (response, args) {
-
-    var flags = (args.flags || storeFactory.NOFLAG),
-      usrList,
-      addrList,
-      rspArray = miscUtilFactory.toArray(response);
-    
-    // TODO processing as array but what about multiple allocation for different canvasses?
-
-    // jic no native implementation is available
-    miscUtilFactory.arrayPolyfill();
-
-    rspArray.forEach(function (allocation) {
-      var canvassResList,
-        testCanvasser = function (entry) {
-          return (entry._id === allocation.canvasser._id);
-        };
-
-      // process canvass sub doc if required
-      if (args.canvassArgs && allocation.canvass) {
-        canvassResList = readCanvassRsp(allocation.canvass, args.canvassArgs);
-      }
-
-      if (args.userId) {
-        usrList = userFactory.getList(args.userId);
-        if (storeFactory.doCreateAny(flags) && allocation.canvasser) {
-          // look for user in existing list from canvass subdoc if processed
-          var existId;
-          if (args.canvassArgs) {
-            existId = args.canvassArgs.userId;
-          }
-
-          usrList = findInExistingList(
-            existId, args.userId, userFactory, testCanvasser, flags, allocation.canvasser,
-            function (resp) {
-              return userFactory.readUserRsp(resp, {
-                objId: args.userId,
-                flags: flags
-              });
-            });
-        }
-        if (args.addrId) {
-          addrList = addressFactory.getList(args.addrId);
-        }
-
-        if (usrList && addrList) {
-
-          // find canvasser
-          var canvasser = usrList.findInList(testCanvasser);
-          if (canvasser) {
-
-            canvasser.allocId = allocation._id;
-
-            if (args.labeller) {
-              canvasser.labelClass = args.labeller();
-            } else if (labeller) {
-              canvasser.labelClass = labeller();
-            }
-
-            if (!canvasser.addresses) {
-              canvasser.addresses = []; // array of ids
-            }
-
-            if (allocation.addresses) {
-              // link canvasser to each address in allocation
-              allocation.addresses.forEach(function (addr) {
-                // find address in address list & set link
-                var testAddress = function (entry) {
-                  return (entry._id === addr._id);
-                },
-                  addrObj = addrList.findInList(testAddress);
-
-                var existId;
-                if (args.canvassArgs) {
-                  existId = args.canvassArgs.addrId;
-                }
-
-                addrList = findInExistingList(
-                  existId, args.addrId, addressFactory, testAddress, flags, addr,
-                  function (resp) {
-                    return userFactory.readUserRsp(resp, {
-                      objId: args.userId,
-                      flags: flags
-                    });
-                  });
-                if (addrObj) {
-                  linkCanvasserToAddr(canvasser, addrObj);
-                }
-              });
-            }
-          }
-          if (storeFactory.doApplyFilter(flags)) {
-            usrList.applyFilter();
-            addrList.applyFilter();
-          }
-        }
-      }
-    });
-
-    if (args.next) {
-      args.next();
-    }
-  }
-
-  /**
-    * Find an object in an existing list and add the same object to a new list if possible
-    * @param {string|Array}   existId     id/array of ids of existing list
-    * @param {string}         newId       id of new list to add object to
-    * @param {function}       testFxn     function to test objects
-    * @param {function}       factory     factory to process lists
-    * @param {object}         resp        object received from server
-    * @param {function}       processFxn  function to process adding new object if no existing found
-    */
-  function findInExistingList (existId, newId, factory, testFxn, flags, resp, processFxn) {
-    var newList = factory.getList(newId);  // get new list
-
-    if (existId) {
-      var idArray = miscUtilFactory.toArray(existId),
-        existList = factory.getList(idArray[0]);  // get existing list
-
-      if (existList) {
-        var existing = existList.findInList(testFxn);
-        if (existing) {
-          // copy info from resp into existing
-          miscUtilFactory.copyProperties(resp, existing);
-
-          // add (i.e. same object) to the new list
-          if (!newList || (newList.count === 0)) {
-            // create or set single entry list
-            newList = factory.setList(newId, [existing], flags);
-          } else if (!newList.findInList(testFxn)) {
-            // add to existing list
-            newList.addToList(existing);
-          }
-        }
-      }
-    }
-    if (!newList) {
-      // process response
-      newList = processFxn(resp);
-    } else if (!newList.findInList(testFxn)) {
-      // add to existing list
-      newList.addToList(resp);
-    }
-    return newList;
-  }
-
-
-  /**
     * Link addresses to canvass results
-    * @param {string|Array} resultsId   id/array of ids of canvass result lists
-    * @param {string|Array} addrId      id/array of ids of address lists
+    * @param {object|Array} addrArgs    arg object/array of arg objects of addresses
+    * @param {object|Array} resultsId   arg object/array of arg objects of results
+    * @param {object} response          object to read data from
     */
-  function linkAddrListAndResults (resultsId, addrId) {
-    if (resultsId && addrId) {
-      // set list to a copy of the response list
-      var addrArray = miscUtilFactory.toArray(addrId),
-        changed = [];
+  function linkAddressAndResults (addrArgs, resultArgs, response) {
+    if (addrArgs && resultArgs) {
+      var addresses,
+        results;
 
-      miscUtilFactory.toArray(resultsId).forEach(function (resId) {
-        var list = canvassResultFactory.getList(resId);
-        if (list) {
-          list.forEachInList(function (result) {
-            addrArray.forEach(function (addrId) {
-              var addrList = addressFactory.getList(addrId);
-              if (addrList) {
-                var addr = addrList.findInList(function (entry) {
-                  return (entry._id === result.address._id);
+      miscUtilFactory.toArray(response).forEach(function (rsp) {
+        addresses = [];
+        results = [];
+
+        miscUtilFactory.toArray(addrArgs).forEach(function (addrArg) {
+          addresses.push(resourceFactory.getObjectInfo(rsp, addrArg).object);
+        });
+        miscUtilFactory.toArray(resultArgs).forEach(function (resArg) {
+          results.push(resourceFactory.getObjectInfo(rsp, resArg).object);
+        });
+
+        if (addresses.length && results.length) {
+          results.forEach(function (result) {
+            result.forEach(function (resObj) {
+              addresses.forEach(function (address) {
+                var addr = address.find(function (entry) {
+                  return (entry._id === resObj.address._id);
                 });
                 if (addr) {
                   // link address and canvass result
-                  addr.canvassResult = result._id;
-                  if (changed.indexOf(addrList) === -1) {
-                    changed.push(addrList);
-                  }
+                  addr.canvassResult = resObj._id;
                 }
-              }
+              });
             });
           });
         }
-      });
-      changed.forEach(function (list) {
-        list.exeChanged();
       });
     }
   }
 
   /**
-    * Link survey questions to canvass results
-    * @param {string|Array} resultArgs  id/array of ids of canvass result lists
-    * @param {string|Array} surveyArgs  id/array of ids of survey objects
+    * Link questions to canvass results
+    * @param {object|Array} quesArgs    arg object/array of arg objects of questions
+    * @param {object|Array} resultsId   arg object/array of arg objects of results
+    * @param {object} response          object to read data from
     */
-  function linkQuestionsAndResults (resultArgs, surveyArgs) {
-    if (resultArgs && surveyArgs) {
-      // set list to a copy of the response list
-      var i, 
-        quesArray = [], // array of question lists
-        quesPath = SURVEYSCHEMA.SCHEMA.getModelName(SURVEYSCHEMA.IDs.QUESTIONS),
-        resArray = miscUtilFactory.toArray(resultArgs.objId);
-      
-      // retrieve all local work question lists
-      miscUtilFactory.toArray(surveyArgs).forEach(function (survey) {
-        if (survey.subObj) {
-          miscUtilFactory.toArray(survey.subObj).forEach(function (sub) {
-            if (sub.path === quesPath) {
-              // questions local work object
-              var quesList = sub.factory.getList(sub.objId);
-              if (quesList) {
-                quesArray.push(quesList);
-                
-                quesList.forEachInList(function (question) {
-                  if (sub.factory.showQuestionOptions(question.type)) {
-                    question.labels = question.options;
+  function linkQuestionAndResults (quesArgs, resultArgs, response) {
+    if (quesArgs && resultArgs) {
+      var quesLists = [],
+        resLists = [],
+        i, resData, obj;
 
-                    /* chart.js pie, polarArea & doughnut charts may be displayed using
-                        single data series (i.e. data = []), whereas chart.js radar, line &
-                        bar require multiple data series (i.e. data = [[], []]) */
-                    var array = []; // raw data array
-                    for (i = 0; i < question.labels.length; ++i) {
-                      array[i] = 0;
-
-                      // add properties to the question whose values are the indices into the data array
-                      question[makeOptionIndexPropertyName(question.labels[i])] = i;
-                    }
-                    question.chart = resultArgs.customArgs.getChartType(question.type);
-                    switch (question.chart) {
-                      case CHARTS.PIE:
-                      case CHARTS.POLAR:
-                      case CHARTS.DOUGHNUT:
-                        question.data = array;
-                        // series info not required
-                        break;
-                      case CHARTS.BAR:
-                      case CHARTS.RADAR:
-                      case CHARTS.LINE:
-                        question.data = [array];
-                        question.series = ['0'];  // just one series
-                        break;
-                    }
-                    question.maxValue = 0;
-                    
-                  } else if (sub.factory.showTextInput(question.type)) {
-                    question.data = [];
-                  }
-                });
-              }
-            }
+      miscUtilFactory.toArray(quesArgs).forEach(function (quesArg) {
+        obj = resourceFactory.getObjectInfo(response, quesArg).object;
+        if (obj) {
+          quesLists.push({
+            list: obj,                // questions array
+            factory: quesArg.factory  // factory to handle them
+          });
+        }
+      });
+      miscUtilFactory.toArray(resultArgs).forEach(function (resArg) {
+        obj = resourceFactory.getObjectInfo(response, resArg).object;
+        if (obj) {
+          resLists.push({
+            list: obj,  // results array
+            getChartType: (resArg.customArgs ? resArg.customArgs.getChartType : undefined)
           });
         }
       });
 
-      if (quesArray.length) {
+      if (quesLists.length && resLists.length) {
+        // loop questions initialising results related data
+        quesLists.forEach(function (questionList) {
+          questionList.list.forEach(function (question) {
+            resData = {
+              // labels, chart, data, series, maxValue, data indices properties
+            }; // put all results related stuff in a single object
+            if (questionList.factory.showQuestionOptions(question.type)) {
+              resData.labels = question.options;
+
+              /* chart.js pie, polarArea & doughnut charts may be displayed using
+                  single data series (i.e. data = []), whereas chart.js radar, line &
+                  bar require multiple data series (i.e. data = [[], []]) */
+              var array = []; // raw data array
+              for (i = 0; i < resData.labels.length; ++i) {
+                array[i] = 0;
+
+                // add properties to the question whose values are the indices into the data array
+                resData[makeOptionIndexPropertyName(resData.labels[i])] = i;
+              }
+              
+              resLists.forEach(function (res) {
+                if (res.getChartType) {
+                  resData.chart = res.getChartType(question.type);
+                  switch (resData.chart) {
+                    case CHARTS.PIE:
+                    case CHARTS.POLAR:
+                    case CHARTS.DOUGHNUT:
+                      resData.data = array;
+                      // series info not required
+                      break;
+                    case CHARTS.BAR:
+                    case CHARTS.RADAR:
+                    case CHARTS.LINE:
+                      resData.data = [array];
+                      resData.series = ['0'];  // just one series
+                      break;
+                  }
+                }
+              });
+              resData.maxValue = 0;
+
+            } else if (questionList.factory.showTextInput(question.type)) {
+              resData.data = [];
+            }
+            question.resData = resData;
+          });
+        });
+        
         // loop through results linking answers & questions
-        var list,
-          start,
+        var start,
           ques,
-          procObj = function (list) {
-            var self = this;
-            self.list = list;
-            self.answer = undefined;
-            self.question = undefined;
-            self.seriesIdx = -1;
-            
-            self.setAnswer = function (answer) {
-              self.answer = answer;
-            };
-            self.setQuestion = function (question) {
-              self.question = question;
-            };
-            self.setSeriesIdx = function (seriesIdx) {
-              self.seriesIdx = seriesIdx;
-            };
-            self.clrSeriesIdx = function () {
-              self.seriesIdx = -1;
-            };
-
-            self.testQuestionId = function (ques) {
-              var result = false;
-              if (self.answer.question) {
-                result = (self.answer.question._id === ques._id);
-              }
-              return result;
-            };
-            self.procData = function (ans) {
-              var idx,
-                value;
-
-              if (questionFactory.showRankingNumber(self.question.type)) {
-                /* if its a ranking question the answer is the value between min & 
-                    max rank, not the displayed options */
-                idx = parseInt(ans) - self.question.rangeMin;
-              } else {
-                idx = self.question[makeOptionIndexPropertyName(ans)];
-              }
-              if (idx >= 0) {
-                if (self.seriesIdx >= 0) {
-                  value = ++self.question.data[self.seriesIdx][idx];
-                } else {
-                  value = ++self.question.data[idx];
-                }
-                if (value > self.question.maxValue) {
-                  self.question.maxValue = value;
-                }
-              }
-            };
-          };
-        resArray.forEach(function (resId) {
-          list = canvassResultFactory.getList(resId);
-          if (list) {
-            var runnerObj = new procObj(list);
+          ansProcessor = new AnswerProcessor();
+        resLists.forEach(function (res) {
+          if (res.list) {
             // loop through results 
-            list.forEachInList(function (result) {
+            res.list.forEach(function (result) {
               if (result.answers && result.answers.length) {
 
                 // loop thru answers looking for questions from list
                 result.answers.forEach(function (answer) {
-                  runnerObj.setAnswer(answer);
+                  ansProcessor.setAnswer(answer);
 
-                  quesArray.forEach(function (qlist) {
-                    for (start = 0; start >= 0; ++start) {
-                      start = qlist.findIndexInList(runnerObj.testQuestionId, start);
-                      if (start >= 0) {
-                        ques = qlist.getFromList(start);
-                        
+                  quesLists.forEach(function (questionList) {
+                    questionList.list.forEach(function (question) {
+                      if (ansProcessor.testQuestionId(question)) {
                         // set data for options from answer
-                        if (ques) {
-                          if (questionFactory.showQuestionOptions(ques.type)) {
-                            runnerObj.setQuestion(ques);
-                            if (ques.series) {
-                              // only one series for now but ..
-                              runnerObj.setSeriesIdx(ques.series.length - 1);
-                            } else {
-                              runnerObj.clrSeriesIdx();
-                            }
+                        resData = question.resData;
+                        if (questionFactory.showQuestionOptions(question.type)) {
+                          ansProcessor.setQuestion(question);
 
-                            var splits = answer.answer.split(',');
-                            splits.forEach(runnerObj.procData);
-
-                          } else if (questionFactory.showTextInput(ques.type)) {
-                            ques.data.push(answer.answer);
+                          if (resData.series) {
+                            // only one series for now but ..
+                            ansProcessor.setSeriesIdx(resData.series.length - 1);
+                          } else {
+                            ansProcessor.clrSeriesIdx();
                           }
+
+                          var splits = answer.answer.split(',');
+                          splits.forEach(ansProcessor.procData, ansProcessor);
+
+                        } else if (questionFactory.showTextInput(question.type)) {
+                          resData.data.push(answer.answer);
                         }
-                      } else {
-                        break;
                       }
-                    }
+                    });
                   });
                 });
               }
             });
-            
-            quesArray.forEach(function (qlist) {
-              qlist.exeChanged();  // objects in list have changed, trigger listeners 
-            });
           }
         });
-      }                                                          
+      }
     }
   }
 
+  /**
+   * Processor for a aurvey answer's data
+   */
+  function AnswerProcessor () {
+    this.answer = undefined;
+    this.question = undefined;
+    this.seriesIdx = -1;
+
+    this.setAnswer = function (answer) {
+      this.answer = answer;
+    };
+    this.setQuestion = function (question) {
+      this.question = question;
+    };
+    this.setSeriesIdx = function (seriesIdx) {
+      this.seriesIdx = seriesIdx;
+    };
+    this.clrSeriesIdx = function () {
+      this.seriesIdx = -1;
+    };
+
+    this.testQuestionId = function (ques) {
+      var result = false;
+      if (this.answer.question) {
+        result = (this.answer.question._id === ques._id);
+      }
+      return result;
+    };
+    
+    this.procData = function (ans) {
+      var idx,
+        value;
+
+      if (questionFactory.showRankingNumber(this.question.type)) {
+        /* if its a ranking question the answer is the value between min & 
+            max rank, not the displayed options */
+        idx = parseInt(ans) - this.question.rangeMin;
+      } else {
+        idx = this.question.resData[makeOptionIndexPropertyName(ans)];
+      }
+      if (idx >= 0) {
+        if (this.seriesIdx >= 0) {
+          value = ++this.question.resData.data[this.seriesIdx][idx];
+        } else {
+          value = ++this.question.resData.data[idx];
+        }
+        if (value > this.question.resData.maxValue) {
+          this.question.resData.maxValue = value;
+        }
+      }
+    };
+  }
+
+  /**
+   * Make an option index property name
+   * @param   {string} option Option name
+   * @returns {string} property name
+   */
   function makeOptionIndexPropertyName (option) {
     return 'optIdx_' + option;
   }
@@ -723,6 +632,106 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
   function storeId (id) {
     return CANVASSSCHEMA.ID_TAG + id;
   }
+
+  function getFilteredResource (resList, filter, success, failure, forEachSchemaField) {
+    
+    filter = filter || newFilter();
+
+    if (typeof filter === 'function') {
+      forEachSchemaField = failure;
+      failure = success;
+      filter = newFilter();
+    }
+    if (!forEachSchemaField) {
+      forEachSchemaField = forEachCanvassSchemaField;
+    }
+
+    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
+
+    resList.setList([]);
+    getCanvasses().query(query).$promise.then(
+      // success function
+      function (response) {
+        // add indices
+        for (var i = 0; i < response.length; ++i) {
+          response[i].index = i + 1;
+        }
+        // response from server contains result of filter request
+        resList.setList(response, storeFactory.APPLY_FILTER);
+
+        if (success){
+          success(response);
+        }
+      },
+      // error function
+      function (response) {
+        if (failure){
+          failure(response);
+        }
+      }
+    );
+  }
+
+  function setFilter (id, filter, flags) {
+    if (!filter) {
+      filter = newFilter();
+    }
+    return resourceFactory.setFilter(storeId(id), filter, flags);
+  }
+
+  function getSortOptions () {
+    return CANVASSSCHEMA.SORT_OPTIONS;
+  }
+
+  function forEachCanvassSchemaField (callback) {
+    CANVASSSCHEMA.SCHEMA.forEachField(callback);
+  }
+  
+  function newFilter (base, customFilter) {
+    if (!customFilter) {
+      customFilter = filterFunction;
+    }
+    var filter = filterFactory.newResourceFilter(CANVASSSCHEMA.SCHEMA, base);
+    filter.customFunction = customFilter;
+    return filter;
+  }
+  
+  /**
+   * Generate a filtered list
+   * @param {object}   reslist    Address ResourceList object to filter
+   * @param {object}   filter     filter to apply
+   * @param {function} xtraFilter Function to provide additional filtering
+   * @returns {Array}    filtered list
+   */
+  function getFilteredList (reslist, filter, xtraFilter) {
+    // canvass specific filter function
+    return filterFactory.getFilteredList('filterCanvass', reslist, filter, xtraFilter);
+  }
+  
+  function filterFunction (addrList, filter) {
+    // canvass specific filter function
+    addrList.filterList = getFilteredList(addrList, filter);
+  }
+  
+  
+  function getSortFunction (options, sortBy) {
+    var sortFxn = resourceFactory.getSortFunction(options, sortBy);
+    if (typeof sortFxn === 'object') {
+      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
+      if (sortItem.idTag === CANVASSSCHEMA.ID_TAG) {
+        switch (sortItem.index) {
+          //case CANVASSSCHEMA.CANVASS_NAME_IDX:
+          //  sortFxn = compareAddress;
+          //  break;
+          default:
+            sortFxn = undefined;
+            break;
+        }
+      }
+    }
+    return sortFxn;
+  }
+
 
 }
 

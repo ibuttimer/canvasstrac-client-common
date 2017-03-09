@@ -7,28 +7,41 @@ angular.module('ct.clientCommon')
   .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'TYPE', modelName: 'type', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.NUMBER },
-      { field: 'QUESTION', modelName: 'question', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'OPTIONS', modelName: 'options', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.STRING_ARRAY },
-      { field: 'RANGEMIN', modelName: 'rangeMin', dfltValue: 1, type: SCHEMA_CONST.FIELD_TYPES.NUMBER },
-      { field: 'RANGEMAX', modelName: 'rangeMax', dfltValue: 10, type: SCHEMA_CONST.FIELD_TYPES.NUMBER }
+      SCHEMA_CONST.ID,
+      {
+        field: 'TYPE', modelName: 'type',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.NUMBER
+      },
+      {
+        field: 'QUESTION', modelName: 'question',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+      },
+      {
+        field: 'OPTIONS', modelName: 'options',
+        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.STRING_ARRAY
+      },
+      {
+        field: 'RANGEMIN', modelName: 'rangeMin',
+        dfltValue: 1, type: SCHEMA_CONST.FIELD_TYPES.NUMBER
+      },
+      {
+        field: 'RANGEMAX', modelName: 'rangeMax',
+        dfltValue: 10, type: SCHEMA_CONST.FIELD_TYPES.NUMBER
+      }
     ],
       ids = {},
       modelProps = [];
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      modelProps.push({
-        id: i,
-        modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue,
-        type: details[i].type
-      });
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      modelProps.push(schemaProvider.getModelPropObject(args));
     }
 
     var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('ques'),
-      schema = schemaProvider.getSchema('Question', modelProps, ID_TAG),
+      schema = schemaProvider.getSchema('Question', modelProps, ids, ID_TAG),
       QUES_TYPE_IDX =
         schema.addFieldFromModelProp('type', 'Type', ids.TYPE),
       QUES_QUESTION_IDX =
@@ -109,15 +122,33 @@ angular.module('ct.clientCommon')
     });
   })
 
+  .filter('filterQues', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
+
+    function filterQuesFilter(input, schema, filterBy) {
+
+      // question specific filter function
+      var out = [];
+
+      //if (!miscUtilFactory.isEmpty(filterBy)) {
+        // TODO question specific filter function
+      //} else {
+        out = input;
+      //}
+      return out;
+    }
+
+    return filterQuesFilter;
+  }])
+
   .factory('questionFactory', questionFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-questionFactory.$inject = ['$resource', '$injector', 'baseURL', 'QUESTIONSCHEMA', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'consoleService'];
+questionFactory.$inject = ['$resource', '$injector', 'baseURL', 'SCHEMA_CONST', 'QUESTIONSCHEMA', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'consoleService'];
 
-function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFactory, resourceFactory, miscUtilFactory, consoleService) {
+function questionFactory($resource, $injector, baseURL, SCHEMA_CONST, QUESTIONSCHEMA, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -132,10 +163,17 @@ function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFac
       showQuestionMultiSelOptions: showQuestionMultiSelOptions,
       showRankingNumber: showRankingNumber,
       showTextInput: showTextInput,
-      getSortOptions: getSortOptions,
       readRspObject: readRspObject,
-      readQuestionRsp: readQuestionRsp,
-      storeRspObject: storeRspObject
+      readResponse: readResponse,
+      storeRspObject: storeRspObject,
+
+      setFilter: setFilter,
+      newFilter: newFilter,
+      getFilteredList: getFilteredList,
+      forEachSchemaField: forEachQuesSchemaField,
+      getSortOptions: getSortOptions,
+      getSortFunction: getSortFunction,
+      getFilteredResource: getFilteredResource
     },
     con = consoleService.getLogger(factory.NAME),
     stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
@@ -276,18 +314,22 @@ function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFac
    * @returns {object}  Survey object
    */
   function readRspObject(response, args) {
+    if (!args) {
+      args = {};
+    }
     // no conversions required by default
-//    if (!args) {
-//      args = {};
-//    }
-//    if (!args.convert) {
+    //    if (!args.convert) {
 //      args.convert = readRspObjectValueConvert;
 //    }
-    var question = QUESTIONSCHEMA.SCHEMA.readProperty(response, args);
+    // add resources required by Schema object
+    resourceFactory.addResourcesToArgs(args);
 
-    con.debug('Read question rsp object: ' + question);
+    var stdArgs = resourceFactory.standardiseArgs(args),
+      object = QUESTIONSCHEMA.SCHEMA.read(response, stdArgs);
 
-    return question;
+    con.debug('Read question rsp object: ' + object);
+
+    return object;
   }
 
   /**
@@ -299,8 +341,8 @@ function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFac
    *    {function}     next       function to call after processing
    * @returns {object}   Survey object
    */
-  function readQuestionRsp(response, args) {
-    var question = readRspObject(response);
+  function readResponse (response, args) {
+    var question = readRspObject(response, args);
     return storeRspObject(question, args);
   }
 
@@ -319,13 +361,110 @@ function questionFactory($resource, $injector, baseURL, QUESTIONSCHEMA, storeFac
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
+  function getFilteredResource(resList, filter, success, failure, forEachSchemaField) {
+
+    filter = filter || newFilter();
+
+    if (typeof filter === 'function') {
+      forEachSchemaField = failure;
+      failure = success;
+      filter = newFilter();
+    }
+    if (!forEachSchemaField) {
+      forEachSchemaField = forEachQuesSchemaField;
+    }
+
+    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
+
+    resList.setList([]);
+    getQuestions().query(query).$promise.then(
+      // success function
+      function (response) {
+        // add indices
+        for (var i = 0; i < response.length; ++i) {
+          response[i].index = i + 1;
+        }
+        // response from server contains result of filter request
+        resList.setList(response, storeFactory.APPLY_FILTER);
+
+        if (success) {
+          success(response);
+        }
+      },
+      // error function
+      function (response) {
+        if (failure) {
+          failure(response);
+        }
+      }
+    );
+  }
+
 
   function storeId(id) {
     return QUESTIONSCHEMA.ID_TAG + id;
   }
   
+  function setFilter (id, filter, flags) {
+    if (!filter) {
+      filter = newFilter();
+    }
+    return resourceFactory.setFilter(storeId(id), filter, flags);
+  }
+
   function getSortOptions () {
     return QUESTIONSCHEMA.SORT_OPTIONS;
+  }
+
+  function forEachQuesSchemaField (callback) {
+    QUESTIONSCHEMA.SCHEMA.forEachField(callback);
+  }
+  
+  function newFilter (base, customFilter) {
+    if (!customFilter) {
+      customFilter = filterFunction;
+    }
+    var filter = filterFactory.newResourceFilter(QUESTIONSCHEMA.SCHEMA, base);
+    filter.customFunction = customFilter;
+    return filter;
+  }
+  
+  /**
+   * Generate a filtered list
+   * @param {object}   reslist    Address ResourceList object to filter
+   * @param {object}   filter     filter to apply
+   * @param {function} xtraFilter Function to provide additional filtering
+   * @returns {Array}    filtered list
+   */
+  function getFilteredList (reslist, filter, xtraFilter) {
+    return filterFactory.getFilteredList('filterQues', reslist, filter, xtraFilter);
+  }
+  
+  function filterFunction (reslist, filter) {
+    // question specific filter function
+    reslist.filterList = getFilteredList(reslist, filter);
+  }
+  
+  
+  function getSortFunction (options, sortBy) {
+    var sortFxn = resourceFactory.getSortFunction(options, sortBy);
+    if (typeof sortFxn === 'object') {
+      var sortItem = SCHEMA_CONST.DECODE_SORT_ITEM_ID(sortFxn.id);
+      if (sortItem.idTag === QUESTIONSCHEMA.ID_TAG) {
+        switch (sortItem.index) {
+          //case QUESTIONSCHEMA.QUES_TYPE_IDX:
+          //  sortFxn = compareAddress;
+          //  break;
+          //case QUESTIONSCHEMA.QUES_QUESTION_IDX:
+          //  sortFxn = compareTown;
+          //  break;
+          default:
+            sortFxn = undefined;
+            break;
+        }
+      }
+    }
+    return sortFxn;
   }
 
 }

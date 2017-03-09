@@ -7,26 +7,33 @@ angular.module('ct.clientCommon')
   .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'NAME', modelName: 'name', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'DESCRIPTION', modelName: 'description', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'ABBREVIATION', modelName: 'abbreviation', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING }
+      SCHEMA_CONST.ID,
+      {
+        field: 'NAME', modelName: 'name',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'DESCRIPTION', modelName: 'description',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'ABBREVIATION', modelName: 'abbreviation',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      }
     ],
       ids = {},
       modelProps = [];
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      modelProps.push({
-        id: i,
-        modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue,
-        type: details[i].type
-      });
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      modelProps.push(schemaProvider.getModelPropObject(args));
     }
 
     var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('votingsys'),
-      schema = schemaProvider.getSchema('Voting System', modelProps, ID_TAG),
+      schema = schemaProvider.getSchema('Voting System', modelProps, ids, ID_TAG),
       VOTINGSYS_NAME_IDX =
         schema.addFieldFromModelProp('name', 'Name', ids.NAME),
       VOTINGSYS_DESCRIPTION_IDX =
@@ -71,7 +78,7 @@ function votingsystemFactory ($resource, $injector, $filter, storeFactory, resou
       NAME: 'votingsystemFactory',
       getVotingSystems: getVotingSystems,
       readRspObject: readRspObject,
-      readVotingSystemRsp: readVotingSystemRsp,
+      readResponse: readResponse,
       storeRspObject: storeRspObject,
       setFilter:setFilter,
       getSortOptions: getSortOptions,
@@ -107,18 +114,22 @@ function votingsystemFactory ($resource, $injector, $filter, storeFactory, resou
    * @returns {object}  voting system object
    */
   function readRspObject (response, args) {
-// no special conversions required
-//    if (!args) {
-//      args = {};
-//    }
+    if (!args) {
+      args = {};
+    }
+    // no conversions required by default
 //    if (!args.convert) {
 //      args.convert = readRspObjectValueConvert;
 //    }
-    var obj = VOTINGSYSSCHEMA.SCHEMA.readProperty(response, args);
+    // add resources required by Schema object
+    resourceFactory.addResourcesToArgs(args);
 
-    con.debug('Read voting sys rsp object: ' + obj);
+    var stdArgs = resourceFactory.standardiseArgs(args),
+      object = VOTINGSYSSCHEMA.SCHEMA.read(response, stdArgs);
 
-    return obj;
+    con.debug('Read voting sys rsp object: ' + object);
+
+    return object;
   }
 
   /**
@@ -149,8 +160,8 @@ function votingsystemFactory ($resource, $injector, $filter, storeFactory, resou
    *    {function}     next       function to call after processing
    * @return {object}  voting system ResourceList object
    */
-  function readVotingSystemRsp (response, args) {
-    var system = readRspObject(response);
+  function readResponse (response, args) {
+    var system = readRspObject(response, args);
     return storeRspObject(system, args);
   }
 

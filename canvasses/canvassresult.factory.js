@@ -7,16 +7,43 @@ angular.module('ct.clientCommon')
   .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'AVAILABLE', modelName: 'available', dfltValue: true, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN },
-      { field: 'DONTCANVASS', modelName: 'dontCanvass', dfltValue: false, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN },
-      { field: 'TRYAGAIN', modelName: 'tryAgain', dfltValue: false, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN },
-      { field: 'SUPPORT', modelName: 'support', dfltValue: -1, type: SCHEMA_CONST.FIELD_TYPES.NUMBER },
-      { field: 'DATE', modelName: 'date', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE },
-      { field: 'ANSWERS', modelName: 'answers', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY },
-      { field: 'CANVASSER', modelName: 'canvasser', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'VOTER', modelName: 'voter', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'ADDRESS', modelName: 'address', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
+      SCHEMA_CONST.ID,
+      {
+        field: 'AVAILABLE', modelName: 'available',
+        dfltValue: true, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN
+      },
+      {
+        field: 'DONTCANVASS', modelName: 'dontCanvass',
+        dfltValue: false, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN
+      },
+      {
+        field: 'TRYAGAIN', modelName: 'tryAgain',
+        dfltValue: false, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN
+      },
+      {
+        field: 'SUPPORT', modelName: 'support',
+        dfltValue: -1, type: SCHEMA_CONST.FIELD_TYPES.NUMBER
+      },
+      {
+        field: 'DATE', modelName: 'date',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE
+      },
+      {
+        field: 'ANSWERS', modelName: 'answers',
+        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
+      },
+      {
+        field: 'CANVASSER', modelName: 'canvasser', factory: 'userFactory',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+      },
+      {
+        field: 'VOTER', modelName: 'voter', factory: 'peopleFactory',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+      },
+      {
+        field: 'ADDRESS', modelName: 'address', factory: 'addressFactory',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+      },
       SCHEMA_CONST.CREATEDAT,
       SCHEMA_CONST.UPDATEDAT
     ],
@@ -25,16 +52,14 @@ angular.module('ct.clientCommon')
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      modelProps.push({
-        id: i,
-        modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue,
-        type: details[i].type
-      });
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      modelProps.push(schemaProvider.getModelPropObject(args));
     }
 
     var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('canvassresult'),
-      schema = schemaProvider.getSchema('CanvassResult', modelProps, ID_TAG),
+      schema = schemaProvider.getSchema('CanvassResult', modelProps, ids, ID_TAG),
       CANVASSRES_AVAILABLE_IDX =
         schema.addFieldFromModelProp('available', 'Available', ids.AVAILABLE),
       CANVASSRES_DONTCANVASS_IDX =
@@ -102,7 +127,7 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
       NAME: 'canvassResultFactory',
       getCanvassResult: getCanvassResult,
       readRspObject: readRspObject,
-      readCanvassResultRsp: readCanvassResultRsp,
+      readResponse: readResponse,
       storeRspObject: storeRspObject,
       setFilter: setFilter,
       newFilter: newFilter,
@@ -155,7 +180,11 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
     if (!args.convert) {
       args.convert = readRspObjectValueConvert;
     }
-    var object = CANVASSRES_SCHEMA.SCHEMA.readProperty(response, args);
+    // add resources required by Schema object
+    resourceFactory.addResourcesToArgs(args);
+
+    var stdArgs = resourceFactory.standardiseArgs(args),
+      object = CANVASSRES_SCHEMA.SCHEMA.read(response, stdArgs);
 
     con.debug('Read canvass result rsp object: ' + object);
 
@@ -191,16 +220,16 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
    *    {string|Array}  userId      id/array of ids of list object to save canvasser data to
    *    {number}        flags       storefactory flags
    *    {object}        surveyArgs  arguments to process embedded survey sub doc, 
-   *                                @see surveyFactory.readSurveyRsp() for details
+   *                                @see surveyFactory.readResponse() for details
    *    {object}        electionArgs arguments to process embedded election sub doc, 
-   *                                @see electionFactory.readElectionRsp() for details
+   *                                @see electionFactory.readResponse() for details
    *    {function}      next        function to call after processing
    * @return {object}   Canvass object
    */
-  function readCanvassResultRsp (response, args) {
+  function readResponse (response, args) {
 
-    var canvass = readRspObject(response);
-    return storeRspObject(canvass, args);
+    var result = readRspObject(response, args);
+    return storeRspObject(result, args);
   }
 
   /**
@@ -212,9 +241,9 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
    *    {string|Array}  userId      id/array of ids of list object to save canvasser data to
    *    {number}        flags       storefactory flags
    *    {object}        surveyArgs  arguments to process embedded survey sub doc, 
-   *                                @see surveyFactory.readSurveyRsp() for details
+   *                                @see surveyFactory.readResponse() for details
    *    {object}        electionArgs arguments to process embedded election sub doc, 
-   *                                @see electionFactory.readElectionRsp() for details
+   *                                @see electionFactory.readResponse() for details
    *    {function}      next        function to call after processing
    * @return {object}   Canvass object
    */
@@ -222,9 +251,10 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
 
     con.debug('Store canvass result response: ' + canvassRes);
 
-    var storeArgs = miscUtilFactory.copyProperties(args, {
-      factory: $injector.get(factory.NAME)
-    }, ['objId', 'flags', 'storage', 'next']);
+    // just basic storage args as subdocs have been processed above
+    var storeArgs = resourceFactory.copyBasicStorageArgs(args, {
+        factory: $injector.get(factory.NAME)
+      });
 
     return resourceFactory.storeServerRsp(canvassRes, storeArgs);
   }

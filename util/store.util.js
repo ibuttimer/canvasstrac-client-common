@@ -21,6 +21,7 @@ function storeFactory(consoleService) {
 
   var store = {},   // object store
     con = consoleService.getLogger('storeFactory'),
+    conIsEnabled = con.isEnabled,
     NOFLAG = 0,
     CREATE = 0x01,      // create new object if doesn't exist
     COPY_SET = 0x02,    // set using copy of object
@@ -83,7 +84,9 @@ function storeFactory(consoleService) {
     if (!flags) {
       flags = factory.CREATE;
     }
-    con.debug('storeFactory[' + id + ']: new ' + flagsToString(flags));
+    if (conIsEnabled) {
+      con.debug('storeFactory[' + id + ']: new ' + flagsToString(flags));
+    }
     if (!store[id] || doCreateInit(flags)) {
       if (doEmptyObj(flags)) {
         store[id] = {};
@@ -117,7 +120,9 @@ function storeFactory(consoleService) {
       presetCb = flags;
       flags = NOFLAG;
     }
-    con.debug('storeFactory[' + id + ']: duplicate ' + flagsToString(flags));
+    if (conIsEnabled) {
+      con.debug('storeFactory[' + id + ']: duplicate ' + flagsToString(flags));
+    }
     var copy = getCopy(srcId, COPY_GET);
     if (copy) {
       if (!store[id] || doOverwrite(flags)) {
@@ -147,7 +152,9 @@ function storeFactory(consoleService) {
    * @returns {object|boolean} Copy of deleted object (if COPY_GET flag) or true/false
    */
   function delObj (id, flags) {
-    con.debug('storeFactory[' + id + ']: del ' + flagsToString(flags));
+    if (conIsEnabled) {
+      con.debug('storeFactory[' + id + ']: del ' + flagsToString(flags));
+    }
     var result = false;
     if (store[id]) {
       result = getCopy(id, flags);
@@ -170,7 +177,9 @@ function storeFactory(consoleService) {
   }
 
   function setObj (id, data, flags, constructor) {
-    con.debug('storeFactory[' + id + ']: set ' + flagsToString(flags));
+    if (conIsEnabled) {
+      con.debug('storeFactory[' + id + ']: set ' + flagsToString(flags));
+    }
     var obj = store[id];
     if (!obj && doCreateAny(flags)) {
       obj = newObj(id, constructor, maskFlag(flags, CREATE_ANY));
@@ -184,10 +193,15 @@ function storeFactory(consoleService) {
   }
   
   function getObj (id, flags) {
-    con.debug('storeFactory[' + id + ']: get ' + flagsToString(flags));
+    if (conIsEnabled) {
+      con.debug('storeFactory[' + id + ']: get ' + flagsToString(flags));
+    }
     var obj = getCopy(id, flags);
     if (!obj) {
       obj = store[id];
+    }
+    if (conIsEnabled) {
+      con.debug(obj ? obj.toString() : obj);
     }
     return obj;
   }

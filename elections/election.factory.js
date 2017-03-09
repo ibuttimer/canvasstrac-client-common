@@ -7,29 +7,45 @@ angular.module('ct.clientCommon')
   .config(function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
-      { field: 'ID', modelName: '_id', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'NAME', modelName: 'name', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'DESCRIPTION', modelName: 'description', dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      { field: 'SEATS', modelName: 'seats', dfltValue: 0, type: SCHEMA_CONST.FIELD_TYPES.NUMBER },
-      { field: 'ELECTIONDATE', modelName: 'electionDate', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE },
-      { field: 'SYSTEM', modelName: 'system', dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID },
-      { field: 'CANDIDATES', modelName: 'candidates', dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY }
+      SCHEMA_CONST.ID,
+      {
+        field: 'NAME', modelName: 'name',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'DESCRIPTION', modelName: 'description',
+        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
+      },
+      {
+        field: 'SEATS', modelName: 'seats',
+        dfltValue: 0, type: SCHEMA_CONST.FIELD_TYPES.NUMBER
+      },
+      {
+        field: 'ELECTIONDATE', modelName: 'electionDate',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE
+      },
+      {
+        field: 'SYSTEM', modelName: 'system', factory: 'votingsystemFactory',
+        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
+      },
+      {
+        field: 'CANDIDATES', modelName: 'candidates',
+        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
+      }
     ],
       ids = {},
       modelProps = [];
 
     for (var i = 0; i < details.length; ++i) {
       ids[details[i].field] = i;          // id is index
-      modelProps.push({
-        id: i,
-        modelName: details[i].modelName, 
-        dfltValue: details[i].dfltValue,
-        type: details[i].type
-      });
+
+      var args = angular.copy(details[i]);
+      args.id = i;
+      modelProps.push(schemaProvider.getModelPropObject(args));
     }
 
     var ID_TAG = SCHEMA_CONST.MAKE_ID_TAG('election'),
-      schema = schemaProvider.getSchema('Election', modelProps, ID_TAG),
+      schema = schemaProvider.getSchema('Election', modelProps, ids, ID_TAG),
       ELECTION_NAME_IDX =
         schema.addFieldFromModelProp('name', 'Name', ids.NAME),
       ELECTION_DESCRIPTION_IDX =
@@ -80,7 +96,7 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
       NAME: 'electionFactory',
       getElections: getElections,
       readRspObject: readRspObject,
-      readElectionRsp: readElectionRsp,
+      readResponse: readResponse,
       storeRspObject: storeRspObject,
       setFilter:setFilter,
       getSortOptions: getSortOptions,
@@ -120,11 +136,15 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
     if (!args.convert) {
       args.convert = readRspObjectValueConvert;
     }
-    var election = ELECTIONSCHEMA.SCHEMA.readProperty(response, args);
+    // add resources required by Schema object
+    resourceFactory.addResourcesToArgs(args);
 
-    con.debug('Read election rsp object: ' + election);
+    var stdArgs = resourceFactory.standardiseArgs(args),
+      object = ELECTIONSCHEMA.SCHEMA.read(response, stdArgs);
 
-    return election;
+    con.debug('Read election rsp object: ' + object);
+
+    return object;
   }
 
   /**
@@ -155,8 +175,8 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
    *    {function}     next       function to call after processing
    * @return {object}  election ResourceList object
    */
-  function readElectionRsp (response, args) {
-    var election = readRspObject(response);
+  function readResponse (response, args) {
+    var election = readRspObject(response, args);
     return storeRspObject(election, args);
   }
 
