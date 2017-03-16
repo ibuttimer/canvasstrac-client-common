@@ -1075,6 +1075,8 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     this.schema = schema;
   }
   
+  StandardFactory.$inject = ['storeFactory', 'name', 'storeId', 'schema'];
+  
   /**
    * Get the factory schema
    * @param {object} factory schema
@@ -1329,6 +1331,8 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     this.sortBy = undefined;  // sort by option
     this.onChange = [];       // functions to be executed when contents are changed
   }
+
+  ResourceList.$inject = ['$filter', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'pagerFactory', 'id', 'title', 'list', 'flags'];
 
   /**
    * Identify this object as a REsourceList

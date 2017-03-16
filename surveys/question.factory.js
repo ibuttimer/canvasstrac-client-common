@@ -4,7 +4,7 @@
 
 angular.module('ct.clientCommon')
 
-  .config(function ($provide, schemaProvider, SCHEMA_CONST) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
       SCHEMA_CONST.ID,
@@ -120,7 +120,7 @@ angular.module('ct.clientCommon')
       TYPEIDs: questionTypeIds,
       QUESTIONOBJs: objs
     });
-  })
+  }])
 
   .filter('filterQues', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
 

@@ -4,7 +4,7 @@
 
 angular.module('ct.clientCommon')
 
-  .config(function ($provide, schemaProvider, SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA) {
 
     var i, uidx = 0,
       ids = {},
@@ -133,7 +133,7 @@ angular.module('ct.clientCommon')
     };
 
     $provide.constant('USERSCHEMA', constToProvide);
-  })
+  }])
 
   .filter('filterUser', ['SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'miscUtilFactory', function (SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA, miscUtilFactory) {
     

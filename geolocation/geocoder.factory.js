@@ -24,9 +24,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-geocoderFactory.$inject = ['$resource', 'geocodeURL', 'apiKey', 'GEOCODER'];
+geocoderFactory.$inject = ['$resource', 'geocodeURL', 'mapsApiKey', 'GEOCODER'];
 
-function geocoderFactory($resource, geocodeURL, apiKey, GEOCODER) {
+function geocoderFactory($resource, geocodeURL, mapsApiKey, GEOCODER) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -63,7 +63,7 @@ function geocoderFactory($resource, geocodeURL, apiKey, GEOCODER) {
     if (addr) {
       getGeocoding().get({
           address: addr,
-          key: apiKey
+          key: mapsApiKey
         },
         // success response
         function (response) {

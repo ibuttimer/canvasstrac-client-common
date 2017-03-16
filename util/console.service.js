@@ -21,57 +21,59 @@ function consoleService($injector) {
 }
 
 function ConsoleLogger(DBG, tag) {
-
+  this.dbg = DBG;
   this.tag = tag;
-
-  this.config = function (tag) {
-    this.tag = tag;
-  };
-
-  this.isEnabled = function () {
-    return DBG.isEnabled(this.tag);
-  };
-
-  this.log = function () {
-    var args = Array.prototype.slice.call(arguments);
-    args.unshift(this.tag);
-    DBG.log.apply(DBG, args);
-  };
-
-  this.debug = function () {
-    var args = Array.prototype.slice.call(arguments);
-    args.unshift(this.tag);
-    DBG.debug.apply(DBG, args);
-  };
-
-  this.info = function () {
-    var args = Array.prototype.slice.call(arguments);
-    args.unshift(this.tag);
-    DBG.info.apply(DBG, args);
-  };
-
-  this.warn = function () {
-    var args = Array.prototype.slice.call(arguments);
-    args.unshift(this.tag);
-    DBG.debug.warn(DBG, args);
-  };
-
-  this.error = function () {
-    var args = Array.prototype.slice.call(arguments);
-    args.unshift(this.tag);
-    DBG.debug.error(DBG, args);
-  };
-
-  this.objToString = function (obj) {
-    var str = '';
-    for (var prop in obj) {
-      if (obj.hasOwnProperty(prop)) {
-        if (str) {
-          str += ', ';
-        }
-        str += prop + ': ' + obj[prop];
-      }
-    }
-    return '{' + str + '}';
-  };
 }
+
+ConsoleLogger.$inject = ['DBG', 'tag'];
+
+ConsoleLogger.prototype.config = function (tag) {
+  this.tag = tag;
+};
+
+ConsoleLogger.prototype.isEnabled = function () {
+  return this.dbg.isEnabled(this.tag);
+};
+
+ConsoleLogger.prototype.log = function () {
+  var args = Array.prototype.slice.call(arguments);
+  args.unshift(this.tag);
+  this.dbg.log.apply(this.dbg, args);
+};
+
+ConsoleLogger.prototype.debug = function () {
+  var args = Array.prototype.slice.call(arguments);
+  args.unshift(this.tag);
+  this.dbg.debug.apply(this.dbg, args);
+};
+
+ConsoleLogger.prototype.info = function () {
+  var args = Array.prototype.slice.call(arguments);
+  args.unshift(this.tag);
+  this.dbg.info.apply(this.dbg, args);
+};
+
+ConsoleLogger.prototype.warn = function () {
+  var args = Array.prototype.slice.call(arguments);
+  args.unshift(this.tag);
+  this.dbg.debug.warn(this.dbg, args);
+};
+
+ConsoleLogger.prototype.error = function () {
+  var args = Array.prototype.slice.call(arguments);
+  args.unshift(this.tag);
+  this.dbg.debug.error(this.dbg, args);
+};
+
+ConsoleLogger.prototype.objToString = function (obj) {
+  var str = '';
+  for (var prop in obj) {
+    if (obj.hasOwnProperty(prop)) {
+      if (str) {
+        str += ', ';
+      }
+      str += prop + ': ' + obj[prop];
+    }
+  }
+  return '{' + str + '}';
+};

@@ -4,7 +4,7 @@
 
 angular.module('ct.clientCommon')
 
-  .config(function ($provide, schemaProvider, SCHEMA_CONST) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
 
     var details = [
       SCHEMA_CONST.ID,
@@ -58,7 +58,7 @@ angular.module('ct.clientCommon')
       SORT_OPTIONS: sortOptions,
       ID_TAG: ID_TAG
     });
-  })
+  }])
 
   .filter('filterCanvassAssignment', ['SCHEMA_CONST', 'utilFactory', 'miscUtilFactory', function (SCHEMA_CONST, utilFactory, miscUtilFactory) {
 

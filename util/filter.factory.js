@@ -80,6 +80,8 @@ function filterFactory ($filter, $injector, consoleService, SCHEMA_CONST) {
     }
   }
 
+  ResourceFilter.$inject = ['SCHEMA_CONST', 'schema', 'base'];
+
   /**
    * toString method for a filter for a ResourceList object
    * @param   {string} prefix Prefix dtring
