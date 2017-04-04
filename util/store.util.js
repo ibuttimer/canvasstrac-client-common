@@ -8,7 +8,7 @@ angular.module('ct.clientCommon')
   .factory('storeFactory', storeFactory)
 
   // browser local storage
-  .factory('localStorage', localStorage);
+  .factory('localStore', localStore);
 
 
 /* Manually Identify Dependencies
@@ -282,12 +282,13 @@ function storeFactory(consoleService) {
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-localStorage.$inject = ['$window'];
+localStore.$inject = ['$window'];
 
-function localStorage ($window) {
+function localStore ($window) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
+    isAvailable: isAvailable,
     store: store,
     remove: remove,
     get: get,
@@ -299,11 +300,23 @@ function localStorage ($window) {
 
   /* function implementation
     -------------------------- */
+  
+  function isAvailable () {
+    try {
+      var x = '__storage_test__';
+      $window.localStorage.setItem(x, x);
+      $window.localStorage.removeItem(x);
+      return true;
+    }
+    catch(e) {
+      return false;
+    }
+  }
 
   function store(key, value) {
     try{
       if($window.Storage){
-        $window.localStorage[key] = value;
+        $window.localStorage.setItem(key, value);
         return true;
       } else {
         return false;
@@ -313,10 +326,10 @@ function localStorage ($window) {
     }
   }
 
-  function remove(key, value) {
+  function remove(key) {
     try{
       if($window.Storage){
-        delete $window.localStorage[key];
+        $window.localStorage.removeItem(key);
         return true;
       } else {
         return false;
@@ -329,7 +342,7 @@ function localStorage ($window) {
   function get(key, defaultValue) {
     try{
       if($window.Storage){
-        return $window.localStorage[key] || defaultValue;
+        return ($window.localStorage.getItem(key) || defaultValue);
       } else {
         return defaultValue;
       }

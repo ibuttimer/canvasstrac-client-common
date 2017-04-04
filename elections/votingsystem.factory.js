@@ -88,12 +88,13 @@ function votingsystemFactory ($resource, $injector, $filter, storeFactory, resou
       filterFunction: filterFunction,
       getSortFunction: getSortFunction
     },
-    con = consoleService.getLogger(factory.NAME),
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: VOTINGSYSSCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+    con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: storeId,
+    schema: VOTINGSYSSCHEMA.SCHEMA,
+    addInterface: factory // add standard factory functions to this factory
+  });
   
   return factory;
 

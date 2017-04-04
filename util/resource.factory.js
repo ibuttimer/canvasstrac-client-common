@@ -385,7 +385,6 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     } // else process for store
 
     var stdArgs = standardiseArgs(args, parent),
-      factory = stdArgs.factory,
       resp, list,
       toSaveInfo = getObjectInfo(response, stdArgs),
       toSave = toSaveInfo.object;

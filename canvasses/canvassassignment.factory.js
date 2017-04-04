@@ -65,9 +65,24 @@ angular.module('ct.clientCommon')
     function filterCanvassAssignmentFilter(input, schema, filterBy) {
 
       // canvass assignment specific filter function
+      var out = [];
 
-      // TODO filter canvass assignment function
-      return input;
+      if (!miscUtilFactory.isEmpty(filterBy)) {
+        var testCnt = 0;  // num of fields to test as speced by filter
+
+        schema.forEachField(function(idx, fieldProp) {
+          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
+            ++testCnt;
+          }
+        });
+        
+        // TODO filter canvass assignment function
+        out = input;
+
+      } else {
+        out = input;
+      }
+      return out;
     }
 
     return filterCanvassAssignmentFilter;
@@ -110,18 +125,19 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
 
     },
     con = consoleService.getLogger(factory.NAME),
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: CANVASSASSIGN_SCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    }),
     addrCanvsrLinkArgs = [factory.ADDR_CANVSR_LINKCANVASSER, factory.ADDR_CANVSR_LINKADDRESS],
     addrCanvsrCanvsrsArgs = [factory.ADDR_CANVSR_CANVASSERARRAY, factory.ADDR_CANVSR_CANVASSERLIST],
     addrCanvsrAddrsArgs = [factory.ADDR_CANVSR_ADDRESSARRAY, factory.ADDR_CANVSR_ADDRESSLIST],
     addrCanvsrObjArgs = addrCanvsrLinkArgs.concat(factory.ADDR_CANVSR_ADDRESSARRAY, factory.ADDR_CANVSR_CANVASSERARRAY),
     addrCanvsrListArgs = [factory.ADDR_CANVSR_CANVASSERLIST, factory.ADDR_CANVSR_ADDRESSLIST],
     addrCanvsrAllArgs = addrCanvsrObjArgs.concat(addrCanvsrListArgs);
-  
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: storeId,
+    schema: CANVASSASSIGN_SCHEMA.SCHEMA,
+    addInterface: factory // add standard factory functions to this factory
+  });
+
   return factory;
 
   /* function implementation
@@ -394,8 +410,7 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
    */
   function linkAddressAndCanvasser(linkArg, response, labeller) {
     if (linkArg) {
-      var i = 0,
-        link = countProperties(addrCanvsrLinkArgs, linkArg),
+      var link = countProperties(addrCanvsrLinkArgs, linkArg),
         canvsrs = countProperties(addrCanvsrCanvsrsArgs, linkArg),
         addrs = countProperties(addrCanvsrAddrsArgs, linkArg),
         lists = {},

@@ -100,11 +100,21 @@ angular.module('ct.clientCommon')
       // canvass specific filter function
       var out = [];
 
-      //if (!miscUtilFactory.isEmpty(filterBy)) {
+      if (!miscUtilFactory.isEmpty(filterBy)) {
+        var testCnt = 0;  // num of fields to test as speced by filter
+
+        schema.forEachField(function(idx, fieldProp) {
+          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
+            ++testCnt;
+          }
+        });
+        
       // TODO canvass specific filter function
-      //} else {
-      out = input;
-      //}
+        out = input;
+
+      } else {
+        out = input;
+      }
       return out;
     }
 
@@ -152,12 +162,13 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
 
     },
     con = consoleService.getLogger(factory.NAME),
-    labeller,
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: CANVASSSCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+    labeller;
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: storeId,
+    schema: CANVASSSCHEMA.SCHEMA,
+    addInterface: factory // add standard factory functions to this factory
+  });
 
   return factory;
 
@@ -428,9 +439,7 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
         });
         
         // loop through results linking answers & questions
-        var start,
-          ques,
-          ansProcessor = new AnswerProcessor();
+        var ansProcessor = new AnswerProcessor();
         resLists.forEach(function (res) {
           if (res.list) {
             // loop through results 

@@ -218,15 +218,15 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
     getSortFunction: getSortFunction,
     getFilteredResource: getFilteredResource,
     readUserRsp: readUserRsp
-
   },
-  stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
+  comparinators = [];
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
     storeId: storeId,
     schema: USERSCHEMA.SCHEMA,
     addInterface: factory // add standard factory functions to this factory
-  }),
-  comparinators = [];
-  
+  });
+
   // make an array of comparinator objects based on sort indices
   USERSCHEMA.SORT_OPTIONS.forEach(function (option) {
     if (option.id) {
@@ -449,9 +449,9 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
    * @param   {object} b Second user object
    * @returns {number} comparision result
    */
-  function compareUsername (a, b) {
-    return compareFactory.compareStringFields(USERSCHEMA.SCHEMA, USERSCHEMA.USER_UNAME_IDX, a, b);
-  }
+//  function compareUsername (a, b) {
+//    return compareFactory.compareStringFields(USERSCHEMA.SCHEMA, USERSCHEMA.USER_UNAME_IDX, a, b);
+//  }
 
   /**
    * Wrapper function to return comparinator function

@@ -22,6 +22,7 @@ function miscUtilFactory () {
     removeProperties: removeProperties,
     isEmpty: isEmpty,
     isNullOrUndefined: isNullOrUndefined,
+    readSafe: readSafe,
     toArray: toArray,
     findArrayIndex: findArrayIndex,
     arrayPolyfill: arrayPolyfill
@@ -124,6 +125,22 @@ function miscUtilFactory () {
       array = input;
     }
     return array;
+  }
+  
+  /**
+   * Read a property from a multi-layered object without a read error if a layer is undefined
+   * @param   {object}   object Object to read from
+   * @param   {Array}    path   property name on path to required value
+   * @returns property value or undefined if can't read it
+   */
+  function readSafe (object, path) {
+    var read = object;
+    if (object && path) {
+      for (var i = 0; (i < path.length) && !isNullOrUndefined(read); ++i) {
+        read = read[path[i]];
+      }
+    }
+    return read;
   }
 
   /**

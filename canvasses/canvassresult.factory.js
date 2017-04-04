@@ -103,9 +103,24 @@ angular.module('ct.clientCommon')
     function filterCanvassResultFilter(input, schema, filterBy) {
 
       // canvass result specific filter function
+      var out = [];
 
-      // TODO filter canvass result function
-      return input;
+      if (!miscUtilFactory.isEmpty(filterBy)) {
+        var testCnt = 0;  // num of fields to test as speced by filter
+
+        schema.forEachField(function(idx, fieldProp) {
+          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
+            ++testCnt;
+          }
+        });
+        
+        // TODO filter canvass result function
+        out = input;
+
+      } else {
+        out = input;
+      }
+      return out;
     }
 
     return filterCanvassResultFilter;
@@ -136,12 +151,13 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
       getSortOptions: getSortOptions,
       getSortFunction: getSortFunction
     },
-    con = consoleService.getLogger(factory.NAME),
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: CANVASSRES_SCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+    con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: storeId,
+    schema: CANVASSRES_SCHEMA.SCHEMA,
+    addInterface: factory // add standard factory functions to this factory
+  });
   
   return factory;
 

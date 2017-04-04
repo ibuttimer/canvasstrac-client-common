@@ -58,11 +58,21 @@ angular.module('ct.clientCommon')
       // answer specific filter function
       var out = [];
 
-      //if (!miscUtilFactory.isEmpty(filterBy)) {
-      // TODO answer specific filter function
-      //} else {
+      if (!miscUtilFactory.isEmpty(filterBy)) {
+        var testCnt = 0;  // num of fields to test as speced by filter
+
+        schema.forEachField(function(idx, fieldProp) {
+          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
+            ++testCnt;
+          }
+        });
+        
+        // TODO TODO answer specific filter function
+        out = input;
+
+      } else {
       out = input;
-      //}
+      }
       return out;
     }
 
@@ -95,12 +105,13 @@ function answerFactory($resource, $injector, baseURL, SCHEMA_CONST, ANSWERSCHEMA
       getSortFunction: getSortFunction,
       getFilteredResource: getFilteredResource
     },
-    con = consoleService.getLogger(factory.NAME),
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: ANSWERSCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+    con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: storeId,
+    schema: ANSWERSCHEMA.SCHEMA,
+    addInterface: factory // add standard factory functions to this factory
+  });
 
   return factory;
 

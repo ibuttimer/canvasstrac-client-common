@@ -90,12 +90,13 @@ function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, compa
     forEachSchemaField: forEachPeopleSchemaField,
     getSortOptions: getSortOptions,
     getSortFunction: getSortFunction
-  },
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: PEOPLESCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+  };
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: storeId,
+    schema: PEOPLESCHEMA.SCHEMA,
+    addInterface: factory // add standard factory functions to this factory
+  });
   
   return factory;
 

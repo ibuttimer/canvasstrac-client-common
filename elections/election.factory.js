@@ -106,12 +106,13 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
       filterFunction: filterFunction,
       getSortFunction: getSortFunction
     },
-    con = consoleService.getLogger(factory.NAME),
-    stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: ELECTIONSCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+    con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: storeId,
+    schema: ELECTIONSCHEMA.SCHEMA,
+    addInterface: factory // add standard factory functions to this factory
+  });
   
   return factory;
 

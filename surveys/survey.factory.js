@@ -79,12 +79,13 @@ function surveyFactory($resource, $injector, baseURL, SURVEYSCHEMA, storeFactory
       readResponse: readResponse,
       storeRspObject: storeRspObject
     },
-   con = consoleService.getLogger(factory.NAME),
-   stdFactory = resourceFactory.registerStandardFactory(factory.NAME, {
-      storeId: storeId,
-      schema: SURVEYSCHEMA.SCHEMA,
-      addInterface: factory // add standard factory functions to this factory
-    });
+   con = consoleService.getLogger(factory.NAME);
+
+  resourceFactory.registerStandardFactory(factory.NAME, {
+    storeId: storeId,
+    schema: SURVEYSCHEMA.SCHEMA,
+    addInterface: factory // add standard factory functions to this factory
+  });
  
   return factory;
 
