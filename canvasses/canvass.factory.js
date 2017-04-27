@@ -591,12 +591,25 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     return letters;
   }
   
-
+  /**
+   * Utility function to find id match
+   * NOTE: needs to be called with bound thisArg
+   * @param   {object}  element Object to test
+   * @returns {boolean} true if id matches
+   */
   function elementIdTest (element) {
+    /*jshint validthis:true */
     return (element._id === this);
   }
 
+  /**
+   * Utility function to find id match
+   * NOTE: needs to be called with bound thisArg
+   * @param   {string}  element Id to test for
+   * @returns {boolean} true if id matches
+   */
   function elementTest (element) {
+    /*jshint validthis:true */
     return (element === this._id);
   }
 

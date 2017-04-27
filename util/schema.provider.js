@@ -776,7 +776,7 @@ angular.module('ct.clientCommon')
                     if (Array.isArray(read)) {
                       for (var ridx = 0; ridx < read.length; ++ridx) {
                         readArgs.obj = read[ridx];   // inplace update
-                        console.log('factory.readRspObject', ridx, readArgs.objId[0]);
+//                        console.log('factory.readRspObject', ridx, readArgs.objId[0]);
                         factory.readRspObject(read[ridx], readArgs);
                       }
                     } else {
@@ -802,7 +802,7 @@ angular.module('ct.clientCommon')
         }, this);
       }
 
-      console.log('readProperty', args, obj);
+//      console.log('readProperty', args, obj);
 
       return obj;
     };

@@ -140,6 +140,31 @@ angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCordova', 'ngCo
       APPERR_USER_URL: FIRST_ACCESS_ERR + 2           // url doesn't match credentials
     };
   })())
+  .constant('ACCESS', (function () {
+    return {
+      // privilege definitions for menu access
+      ACCESS_NONE: 0x00,    // no access
+      ACCESS_CREATE: 0x01,  // create access
+      ACCESS_READ: 0x02,    // read access
+      ACCESS_UPDATE: 0x04,  // update access
+      ACCESS_DELETE: 0x08,  // delete access
+      ACCESS_BIT_COUNT: 4,  // number of access bits per group
+      ACCESS_MASK: 0x0f,    // map of access bits
+
+      ACCESS_ALL: 0x01,     // access all objects group
+      ACCESS_ONE: 0x02,     // access single object group
+      ACCESS_OWN: 0x03,     // access own object group
+      ACCESS_GROUPMASK: 0x07,// map of access group bits
+      
+      // menu access properties in login response
+      VOTINGSYS: 'votingsys',
+      ROLES: 'roles',
+      USERS: 'users',
+      ELECTIONS: 'elections',
+      CANDIDATES: 'candidates',
+      CANVASSES: 'canvasses'
+    };
+  })())
   .config(function () {
     // no config for the moment
   });

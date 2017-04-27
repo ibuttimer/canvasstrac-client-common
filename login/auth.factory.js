@@ -6,10 +6,18 @@ angular.module('ct.clientCommon')
 
   .value('USER', {
     authenticated: false,
-    authToken: undefined,
+    token: undefined,
     expires: undefined,     // time & date string
     sessionLength: 0,       // session length in millisec
     expired: false,
+
+    // access properties
+    votingsys: 0,
+    roles: 0,
+    users: 0,
+    elections: 0,
+    candidates: 0,
+    canvasses: 0,
 
     // mirroring user model properties
     id: '',
@@ -29,9 +37,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-AuthFactory.$inject = ['$resource', '$http', '$cookies', '$timeout', 'localStore', 'baseURL', 'miscUtilFactory', 'timerFactory', 'AUTH_KEYS', 'USER', 'APPCODE'];
+AuthFactory.$inject = ['$resource', '$http', '$cookies', '$timeout', 'localStore', 'baseURL', 'miscUtilFactory', 'timerFactory', 'AUTH_KEYS', 'USER', 'APPCODE', 'ACCESS'];
 
-function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, miscUtilFactory, timerFactory, AUTH_KEYS, USER, APPCODE) {
+function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, miscUtilFactory, timerFactory, AUTH_KEYS, USER, APPCODE, ACCESS) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -40,14 +48,46 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
     register: register,
     loginByFacebook: loginByFacebook,
     tokenRefresh: tokenRefresh,
+    checkForAuthError: checkForAuthError,
     getUserinfo: getUserinfo,
+    isAuthenticated: isAuthenticated,
+    getUsername: getUsername,
+    getUserId: getUserId,
     storeUserinfo: storeUserinfo,
     removeUserinfo: removeUserinfo,
+    hasAccess: hasAccess,
+    isAccess: isAccess,
     SRC: {
       WEB: 'web',
       MOBILE: 'mobile'
     }
-  };
+  },
+  menuAccessProperties = [
+    ACCESS.VOTINGSYS,
+    ACCESS.ROLES,
+    ACCESS.USERS,
+    ACCESS.ELECTIONS,
+    ACCESS.CANDIDATES,
+    ACCESS.CANVASSES
+  ],
+  responseProperties = menuAccessProperties.concat([
+    'token',
+    'expires',
+    'id'
+  ]),
+  credentialProperties = responseProperties.concat('username'),
+  stateProperties = credentialProperties.concat('sessionLength'),
+  crud = [
+    { chr: 'c', bit: ACCESS.ACCESS_CREATE },
+    { chr: 'r', bit: ACCESS.ACCESS_READ },
+    { chr: 'u', bit: ACCESS.ACCESS_UPDATE },
+    { chr: 'd', bit: ACCESS.ACCESS_DELETE }
+  ],
+  a1o = [
+    { chr: 'a', bit: ACCESS.ACCESS_ALL },
+    { chr: '1', bit: ACCESS.ACCESS_ONE },
+    { chr: 'o', bit: ACCESS.ACCESS_OWN }
+  ];
 
   loadUserCredentials();
 
@@ -60,6 +100,7 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
     var authenticated = false,
       expiry,
       state;
+
     if (!miscUtilFactory.isEmpty(credentials)) {
       // check for expired
       authenticated = !credentialsExpired(credentials.expires);
@@ -67,33 +108,30 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
         destroyUserCredentials('stored');
       }
     }
+
     state = {
       username: '',
-      authToken: undefined,
+      token: undefined,
       expires: undefined,
       sessionLength: 0,
       id: ''
     };
+    menuAccessProperties.forEach(function (prop) {
+      state[prop] = 0;
+    });
     if (authenticated) {
       expiry = new Date(credentials.expires);
 
-      state.username = credentials.username;
-      state.authToken = credentials.token;
-      state.expires = credentials.expires;
+      miscUtilFactory.copyProperties(credentials, state, credentialProperties);
       state.sessionLength = expiry.getTime() - Date.now();
-      state.id = credentials.id;
     }
     // update value
     USER.authenticated = authenticated;
     USER.expired = !authenticated;
-    USER.username = state.username;
-    USER.authToken = state.authToken;
-    USER.expires = state.expires;
-    USER.sessionLength = state.sessionLength;
-    USER.id = state.id;
+    miscUtilFactory.copyProperties(state, USER, stateProperties);
 
     // Set the token as header for your requests!
-    $http.defaults.headers.common['x-access-token'] = state.authToken;
+    $http.defaults.headers.common['x-access-token'] = state.token;
 
   }
 
@@ -173,13 +211,11 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
 
 
   function loginSuccess (loginData, response) {
-    var credentials = {
-      username: loginData.username,
-      token: response.token,
-      expires: response.expires,
-      id: response.id
-    };
     
+    var credentials = miscUtilFactory.copyProperties(response, {
+      username: loginData.username
+    }, responseProperties);
+
     if (loginData.rememberMe) {
       storeUserinfo(loginData);
     } else {
@@ -244,18 +280,25 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
         },
         function (response) {
           // error response
-          var appCode = miscUtilFactory.readSafe(response, ['data','error','appCode']);
-          if (APPCODE.IS_TOKEN_APPERR(appCode)) {
-            // any token error on a refresh shuts the shop
-            USER.expired = true;
-            USER.authenticated = false;
-          }
+          checkForAuthError(response);
 
           if (failure) {
             failure(response);
           }
         }
       );
+  }
+
+  function checkForAuthError (response) {
+    // error response
+    var wasErr = false,
+      appCode = miscUtilFactory.readSafe(response, ['data','error','appCode']);
+    if (APPCODE.IS_TOKEN_APPERR(appCode)) {
+      // any token error on a refresh shuts the shop
+      destroyUserCredentials();
+      wasErr = true;
+    }
+    return wasErr;
   }
 
   function logout (success, failure) {
@@ -321,6 +364,126 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
         }
       );
   }
+  
+  
+  /**
+   * Get an access setting for a menu
+   * @param   {string} menu  Menu name
+   * @param   {number} group Access group
+   * @returns {number} Access setting
+   */
+  function getAccess (menu, group) {
+    var access = ACCESS.ACCESS_NONE,
+      privileges = menuAccessProperties.find(function (name) {
+        return (name === menu);
+      });
+    if (privileges) {
+      privileges = USER[privileges] || ACCESS.ACCESS_NONE;
+      for (var bit = (group & ACCESS.ACCESS_GROUPMASK); bit; bit >>>= 1) {
+        if (bit & 0x01) {
+          access = privileges & ACCESS.ACCESS_MASK;
+          break;
+        }
+        privileges >>>= ACCESS.ACCESS_BIT_COUNT;  // next group
+      }
+    }
+    return access;
+  }
 
+  /**
+   * Access test
+   * @param   {string}  menu  Name of menu to test access for
+   * @param   {number}  group Access group
+   * @param   {number}  mask  Mask to test for
+   * @param   {boolean} exact Match criteria; true=exact, false=any
+   * @returns {boolean} true if access matches 
+   */
+  function accessTest (menu, group, mask, exact) {
+    var result = false,
+      testMask = (mask & ACCESS.ACCESS_MASK),
+      access;
+
+    for (var bit = 0x01; (bit & ACCESS.ACCESS_GROUPMASK); bit <<= 1) {
+      if (bit & group) {
+        access = getAccess(menu, bit) & testMask;
+        if (exact) {
+          result = (access === testMask); // exact match test
+          if (!result) {
+            break;
+          }
+        } else {
+          if (access !== 0) { // bit match test
+            result = true;
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Has access (i.e. at least one privilege) test
+   * @param   {string}  menu  Name of menu to test access for
+   * @param   {string}  group Access group; 'a'=all, '1'=one or 'o'=own
+   * @param   {string}  ops   Operations; 'c'=create, 'r'=read, 'u'=update & 'd'=delete
+   * @returns {boolean} true if has access
+   */
+  function hasAccess (menu, group, ops) {
+    return accessTest(menu, valToMask(group, a1o), valToMask(ops, crud), false);
+  }
+
+  /**
+   * Is access (i.e. all privilege) test
+   * @param   {string}  menu  Name of menu to test access for
+   * @param   {string}  group Access group; 'a'=all, '1'=one or 'o'=own
+   * @param   {string}  ops   Operations; 'c'=create, 'r'=read, 'u'=update & 'd'=delete
+   * @returns {boolean} true if has access
+   */
+  function isAccess (menu, group, ops) {
+    return accessTest(menu, valToMask(group, a1o), valToMask(ops, crud), true);
+  }
+
+  /**
+   * Convert a string value to a mask
+   * @param   {string} val   Value to convert
+   * @param   {Array}  cvals Convert values array
+   * @returns {number} mask
+   */
+  function valToMask (val, cvals) {
+    var lval = val.toLowerCase(),
+      mask = 0;
+    cvals.forEach(function (cval) {
+      if (lval.indexOf(cval.chr) >= 0) {
+        mask |= cval.bit;
+      }
+    });
+    return mask;
+  }
+
+  /**
+   * Convenience method to check if user is authenticated
+   * @returns {boolean} true if authenticated
+   */
+  function isAuthenticated() {
+    return USER.authenticated;
+  }
+
+  /**
+   * Convenience method to get user's username
+   * @returns {string} 
+   */
+  function getUsername() {
+    return USER.username;
+  }
+
+  /**
+   * Convenience method to get user's id
+   * @returns {string} 
+   */
+  function getUserId() {
+    return USER.id;
+  }
+  
+  
 }
 

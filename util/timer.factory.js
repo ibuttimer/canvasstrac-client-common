@@ -29,7 +29,6 @@ function TimerFactory($timeout, USER) {
       TOKEN_MULTIPLY: 'token*'  // duration is token life multiplied by amount
     }
   },
-  timeouts = {},
   UNITS = [ 
     { designator: 'ms', factor: 1 },      // msec
     { designator: 's', factor: 1000 },    // sec

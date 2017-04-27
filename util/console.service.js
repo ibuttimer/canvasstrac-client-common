@@ -15,54 +15,68 @@ consoleService.$inject = ['$injector'];
 
 function consoleService($injector) {
 
+  /*jshint validthis:true */
   this.getLogger = function (tag) {
     return $injector.instantiate(ConsoleLogger, {tag: tag});
   };
+  
+}
+
+function getConsoleLoggerTag (tag) {
+  if (tag.indexOf('dbg') === 0) {
+    return tag;
+  } else {
+    return 'dbg' + tag;
+  }
 }
 
 function ConsoleLogger(DBG, tag) {
   this.dbg = DBG;
-  this.tag = tag;
+  this.tag = getConsoleLoggerTag(tag);
 }
 
 ConsoleLogger.$inject = ['DBG', 'tag'];
 
 ConsoleLogger.prototype.config = function (tag) {
-  this.tag = tag;
+  this.tag = getConsoleLoggerTag(tag);
 };
 
 ConsoleLogger.prototype.isEnabled = function () {
   return this.dbg.isEnabled(this.tag);
 };
 
+/**
+ * General logger function 
+ * NOTE: not to be called from outside ConsoleLogger object
+ * @param {string} level Log level
+ */
+ConsoleLogger.prototype.loggerFunc = function (level) {
+  if (this.isEnabled()) {
+    // argument after level will be an array as called from log/debug etc.
+    var args = [].concat(arguments[1]);
+    args.unshift(this.tag);
+    this.dbg[level].apply(this.dbg, args);
+  }
+};
+
 ConsoleLogger.prototype.log = function () {
-  var args = Array.prototype.slice.call(arguments);
-  args.unshift(this.tag);
-  this.dbg.log.apply(this.dbg, args);
+  this.loggerFunc('log', Array.prototype.slice.call(arguments));
 };
 
 ConsoleLogger.prototype.debug = function () {
-  var args = Array.prototype.slice.call(arguments);
-  args.unshift(this.tag);
-  this.dbg.debug.apply(this.dbg, args);
+  this.loggerFunc('debug', Array.prototype.slice.call(arguments));
 };
 
 ConsoleLogger.prototype.info = function () {
-  var args = Array.prototype.slice.call(arguments);
-  args.unshift(this.tag);
-  this.dbg.info.apply(this.dbg, args);
+  this.loggerFunc('info', Array.prototype.slice.call(arguments));
 };
 
 ConsoleLogger.prototype.warn = function () {
-  var args = Array.prototype.slice.call(arguments);
-  args.unshift(this.tag);
-  this.dbg.debug.warn(this.dbg, args);
+  this.loggerFunc('warn', Array.prototype.slice.call(arguments));
 };
 
 ConsoleLogger.prototype.error = function () {
-  var args = Array.prototype.slice.call(arguments);
-  args.unshift(this.tag);
-  this.dbg.debug.error(this.dbg, args);
+  this.loggerFunc('error', Array.prototype.slice.call(arguments));
 };
 
 ConsoleLogger.prototype.objToString = function (obj) {
