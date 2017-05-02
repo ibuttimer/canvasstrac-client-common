@@ -511,8 +511,12 @@ angular.module('ct.clientCommon')
      */
     Schema.prototype.forEachField = function (callback) {
       if (typeof callback === 'function') {
-        for (var i = 0; i < this.fields.length; ++i) {
-          callback(i, this.fields[i]);
+        var loop = true;
+        for (var i = 0; loop && (i < this.fields.length); ++i) {
+          loop = callback(i, this.fields[i]);
+          if (loop === undefined) {
+            loop = true;
+          }
         }
       }
     };

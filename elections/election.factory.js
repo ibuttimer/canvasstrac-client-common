@@ -196,10 +196,21 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
+  /**
+   * Create storeFactory id
+   * @param {string}   id   Factory id to generate storeFactory id from
+   */
   function storeId (id) {
     return ELECTIONSCHEMA.ID_TAG + id;
   }
 
+  /**
+   * Set the filter for a ResourceList
+   * @param {string} id                   ResourceList id
+   * @param {object} [filter=newFilter()] ResourceFilter to set
+   * @param {number} flags                storefactoryFlags
+   * @returns {object} ResourceList object
+   */
   function setFilter(id, filter, flags) {
     if (!filter) {
       filter = newFilter();
@@ -215,6 +226,12 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
     ELECTIONSCHEMA.SCHEMA.forEachField(callback);
   }
 
+  /**
+   * Generate a new ResourceFilter
+   * @param {object}   base         Base object to generate filter from
+   * @param {function} customFilter Custom filter function
+   * @param {boolean}  allowBlank   Allow blanks flag
+   */
   function newFilter(base, customFilter) {
     if (!customFilter) {
       customFilter = filterFunction;
@@ -236,6 +253,11 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
     return filterFactory.getFilteredList('filterElection', reslist, filter, xtraFilter);
   }
 
+  /**
+   * Election-specific filter function
+   * @param {object} reslist ResourceList object
+   * @param {object} filter  Filter object to use (not ResourceFilter)
+   */
   function filterFunction(electionList, filter) {
     // election specific filter function
     electionList.filterList = getFilteredList(electionList, filter);

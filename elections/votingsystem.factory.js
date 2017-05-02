@@ -181,10 +181,21 @@ function votingsystemFactory ($resource, $injector, $filter, storeFactory, resou
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
+  /**
+   * Create storeFactory id
+   * @param {string}   id   Factory id to generate storeFactory id from
+   */
   function storeId (id) {
     return VOTINGSYSSCHEMA.ID_TAG + id;
   }
 
+  /**
+   * Set the filter for a ResourceList
+   * @param {string} id                   ResourceList id
+   * @param {object} [filter=newFilter()] ResourceFilter to set
+   * @param {number} flags                storefactoryFlags
+   * @returns {object} ResourceList object
+   */
   function setFilter(id, filter, flags) {
     if (!filter) {
       filter = newFilter();
@@ -200,6 +211,12 @@ function votingsystemFactory ($resource, $injector, $filter, storeFactory, resou
     VOTINGSYSSCHEMA.SCHEMA.forEachField(callback);
   }
 
+  /**
+   * Generate a new ResourceFilter
+   * @param {object}   base         Base object to generate filter from
+   * @param {function} customFilter Custom filter function
+   * @param {boolean}  allowBlank   Allow blanks flag
+   */
   function newFilter(base, customFilter) {
     if (!customFilter) {
       customFilter = filterFunction;
@@ -221,6 +238,11 @@ function votingsystemFactory ($resource, $injector, $filter, storeFactory, resou
     return filterFactory.getFilteredList('filterVotingSys', reslist, filter, xtraFilter);
   }
 
+  /**
+   * Voting system-specific filter function
+   * @param {object} reslist ResourceList object
+   * @param {object} filter  Filter object to use (not ResourceFilter)
+   */
   function filterFunction(reslist, filter) {
     // voting system specific filter function
     reslist.filterList = getFilteredList(reslist, filter);

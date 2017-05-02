@@ -232,6 +232,14 @@ function addressFactory($resource, $filter, $injector, baseURL, consoleService, 
     return ADDRSCHEMA.ID_TAG + id;
   }
 
+  /**
+   * Get addresses 
+   * @param {object}   resList              ResourceList to save result to
+   * @param {object}   [filter=newFilter()] ResourceFilter to filter raw results
+   * @param {function} success              Function to call on success
+   * @param {function} failure              Function to call on failure
+   * @param {function} forEachSchemaField   Schema field iterator
+   */
   function getFilteredResource (resList, filter, success, failure, forEachSchemaField) {
     
     filter = filter || newFilter();
@@ -271,6 +279,13 @@ function addressFactory($resource, $filter, $injector, baseURL, consoleService, 
     );
   }
   
+  /**
+   * Set the filter for a ResourceList
+   * @param {string} id                   ResourceList id
+   * @param {object} [filter=newFilter()] ResourceFilter to set
+   * @param {number} flags                storefactoryFlags
+   * @returns {object} ResourceList object
+   */
   function setFilter (id, filter, flags) {
     if (!filter) {
       filter = newFilter();
@@ -286,30 +301,50 @@ function addressFactory($resource, $filter, $injector, baseURL, consoleService, 
     ADDRSCHEMA.SCHEMA.forEachField(callback);
   }
   
-  function newFilter (base, customFilter) {
+  /**
+   * Generate a new ResourceFilter
+   * @param {object}   base         Base object to generate filter from
+   * @param {function} customFilter Custom filter function
+   * @param {boolean}  allowBlank   Allow blanks flag
+   */
+  function newFilter (base, customFilter, allowBlank) {
+    if (typeof base === 'function') {
+      allowBlank = customFilter;
+      customFilter = base;
+      base = undefined;
+    }
+    if (typeof customFilter === 'boolean') {
+      allowBlank = customFilter;
+      customFilter = undefined;
+    }
     if (!customFilter) {
       customFilter = filterFunction;
     }
-    var filter = filterFactory.newResourceFilter(ADDRSCHEMA.SCHEMA, base);
+    var filter = filterFactory.newResourceFilter(ADDRSCHEMA.SCHEMA, base, allowBlank);
     filter.customFunction = customFilter;
     return filter;
   }
   
   /**
    * Generate a filtered list
-   * @param {object}   reslist    Address ResourceList object to filter
-   * @param {object}   filter     filter to apply
+   * @param {object}   reslist    ResourceList object to filter
+   * @param {object}   filter     Filter object to use (not ResourceFilter)
    * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array}    filtered list
+   * @returns {Array}  filtered list
    */
   function getFilteredList (reslist, filter, xtraFilter) {
     // address specific filter function
     return filterFactory.getFilteredList('filterAddr', reslist, filter, xtraFilter);
   }
   
-  function filterFunction (addrList, filter) {
+  /**
+   * Address-specific filter function
+   * @param {object} reslist ResourceList object
+   * @param {object} filter  Filter object to use (not ResourceFilter)
+   */
+  function filterFunction (reslist, filter) {
     // address specific filter function
-    addrList.filterList = getFilteredList(addrList, filter);
+    reslist.filterList = getFilteredList(reslist, filter);
   }
   
   

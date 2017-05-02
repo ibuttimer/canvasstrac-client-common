@@ -1504,7 +1504,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
   /**
    * Apply a filter to the list, and update the associated pager if applicable
-   * @param   {object} filter filter to use or preset filter used if undefined
+   * @param   {object} filter Filter object (not ResourceFilter) to use or preset filter used if undefined
    * @returns {object} this object to facilitate chaining
    */
   ResourceList.prototype.applyFilter = function (filter) {
@@ -1517,9 +1517,9 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
     filter = filter || {};
 
-    if (!miscUtilFactory.isEmpty(filter)) {
+    if (!miscUtilFactory.isEmpty(filter) || !this.filter.allowBlank) {
       if (this.filter.customFunction) {
-        // use the specific filter function
+        // use the specific filter function to set the filtered list
         this.filter.customFunction(this, filter);
       } else {
         // use the filter object

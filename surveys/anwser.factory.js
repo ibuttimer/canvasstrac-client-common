@@ -187,6 +187,14 @@ function answerFactory($resource, $injector, baseURL, SCHEMA_CONST, ANSWERSCHEMA
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
+  /**
+   * Get answers 
+   * @param {object}   resList              ResourceList to save result to
+   * @param {object}   [filter=newFilter()] ResourceFilter to filter raw results
+   * @param {function} success              Function to call on success
+   * @param {function} failure              Function to call on failure
+   * @param {function} forEachSchemaField   Schema field iterator
+   */
   function getFilteredResource(resList, filter, success, failure, forEachSchemaField) {
 
     filter = filter || newFilter();
@@ -226,11 +234,21 @@ function answerFactory($resource, $injector, baseURL, SCHEMA_CONST, ANSWERSCHEMA
     );
   }
 
-
+  /**
+   * Create storeFactory id
+   * @param {string}   id   Factory id to generate storeFactory id from
+   */
   function storeId(id) {
     return ANSWERSCHEMA.ID_TAG + id;
   }
   
+  /**
+   * Set the filter for a ResourceList
+   * @param {string} id                   ResourceList id
+   * @param {object} [filter=newFilter()] ResourceFilter to set
+   * @param {number} flags                storefactoryFlags
+   * @returns {object} ResourceList object
+   */
   function setFilter (id, filter, flags) {
     if (!filter) {
       filter = newFilter();
@@ -246,6 +264,12 @@ function answerFactory($resource, $injector, baseURL, SCHEMA_CONST, ANSWERSCHEMA
     ANSWERSCHEMA.SCHEMA.forEachField(callback);
   }
   
+  /**
+   * Generate a new ResourceFilter
+   * @param {object}   base         Base object to generate filter from
+   * @param {function} customFilter Custom filter function
+   * @param {boolean}  allowBlank   Allow blanks flag
+   */
   function newFilter (base, customFilter) {
     if (!customFilter) {
       customFilter = filterFunction;
@@ -266,6 +290,11 @@ function answerFactory($resource, $injector, baseURL, SCHEMA_CONST, ANSWERSCHEMA
     return filterFactory.getFilteredList('filterAns', reslist, filter, xtraFilter);
   }
   
+  /**
+   * Answer-specific filter function
+   * @param {object} reslist ResourceList object
+   * @param {object} filter  Filter object to use (not ResourceFilter)
+   */
   function filterFunction (reslist, filter) {
     // question specific filter function
     reslist.filterList = getFilteredList(reslist, filter);
