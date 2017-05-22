@@ -60,7 +60,7 @@ angular.module('ct.clientCommon')
     });
   }])
 
-  .filter('filterCanvassAssignment', ['SCHEMA_CONST', 'utilFactory', 'miscUtilFactory', function (SCHEMA_CONST, utilFactory, miscUtilFactory) {
+  .filter('filterCanvassAssignment', ['SCHEMA_CONST', 'miscUtilFactory', function (SCHEMA_CONST, miscUtilFactory) {
 
     function filterCanvassAssignmentFilter(input, schema, filterBy) {
 

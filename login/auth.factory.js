@@ -10,6 +10,7 @@ angular.module('ct.clientCommon')
     expires: undefined,     // time & date string
     sessionLength: 0,       // session length in millisec
     expired: false,
+    fromStore: false,
 
     // access properties
     votingsys: 0,
@@ -96,17 +97,22 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
   /* function implementation
     -------------------------- */
   
-  function useCredentials (credentials) {
+  function useCredentials(credentials, fromStore) {
     var authenticated = false,
       expiry,
       state;
+
+    fromStore = fromStore || false;
 
     if (!miscUtilFactory.isEmpty(credentials)) {
       // check for expired
       authenticated = !credentialsExpired(credentials.expires);
       if (!authenticated) {
         destroyUserCredentials('stored');
+        fromStore = false;
       }
+    } else {
+      fromStore = false;
     }
 
     state = {
@@ -128,6 +134,7 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
     // update value
     USER.authenticated = authenticated;
     USER.expired = !authenticated;
+    USER.fromStore = fromStore;
     miscUtilFactory.copyProperties(state, USER, stateProperties);
 
     // Set the token as header for your requests!
@@ -165,7 +172,7 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
 
   function loadUserCredentials () {
     var credentials = loadStored(AUTH_KEYS.TOKEN_KEY);
-    useCredentials(credentials);
+    useCredentials(credentials, true);
   }
 
   function loadStored (key) {

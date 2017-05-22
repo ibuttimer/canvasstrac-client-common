@@ -98,7 +98,7 @@ angular.module('ct.clientCommon')
     });
   }])
 
-  .filter('filterCanvassResult', ['SCHEMA_CONST', 'utilFactory', 'miscUtilFactory', function (SCHEMA_CONST, utilFactory, miscUtilFactory) {
+  .filter('filterCanvassResult', ['SCHEMA_CONST', 'miscUtilFactory', function (SCHEMA_CONST, miscUtilFactory) {
 
     function filterCanvassResultFilter(input, schema, filterBy) {
 

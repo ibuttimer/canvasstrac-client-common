@@ -21,6 +21,7 @@ function miscUtilFactory () {
     copyAndAddProperties: copyAndAddProperties,
     removeProperties: removeProperties,
     isEmpty: isEmpty,
+    isObject: isObject,
     isNullOrUndefined: isNullOrUndefined,
     readSafe: readSafe,
     toArray: toArray,
@@ -93,16 +94,25 @@ function miscUtilFactory () {
    * @param   {object}  object object to test
    * @returns {boolean} true if object is empty
    */
-  function isEmpty (object) {
+  function isEmpty(object) {
     var empty = true;
-    if (object) {
+    if (!isNullOrUndefined(object)) {
       if (Object.getOwnPropertyNames(object).length > 0) {
         empty = false;
       }
-    } 
+    }
     return empty;
   }
-  
+
+  /**
+   * Check if argument is an object
+   * @param   {object}  object object to test
+   * @returns {boolean} true if object is empty
+   */
+  function isObject(object) {
+    return (angular.isObject(object) && !angular.isArray(object));
+  }
+
   /**
    * Check if an object is null or undefined
    * @param   {object}  object object to test
