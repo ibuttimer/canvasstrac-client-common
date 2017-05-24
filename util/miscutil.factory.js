@@ -26,9 +26,24 @@ function miscUtilFactory () {
     readSafe: readSafe,
     toArray: toArray,
     findArrayIndex: findArrayIndex,
-    arrayPolyfill: arrayPolyfill
+    arrayPolyfill: arrayPolyfill,
+
+    listForEach: listForEach,
+    listFind: listFind,
+
+    initSelected: initSelected,
+    selectAll: selectAll,
+    setSelected: setSelected,
+    getSelectedList: getSelectedList,
+    countSelected: countSelected,
+    toggleSelection: toggleSelection,
+    findSelected: findSelected,
+    findUnselected: findUnselected,
+    SET_SEL: 's',
+    CLR_SEL: 'c',
+    TOGGLE_SEL: 't'
   };
-  
+
   return factory;
 
   /* function implementation
@@ -322,6 +337,190 @@ function miscUtilFactory () {
         return O;
       };
     }
+  }
+
+
+  /**
+   * Initialise the 'selected' property of all objects in an array
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to initialise
+   * @param {function} callback Optional function to call with each element
+   */
+  function initSelected(list, callback) {
+    return setSelected(list, factory.CLR_SEL, callback);
+  }
+  
+  /**
+   * Set the 'selected' property of all objects in an array
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to set
+   * @param {function} callback Optional function to call with each element
+   */
+  function selectAll(list, callback) {
+    return setSelected(list, factory.SET_SEL, callback);
+  }
+
+  /**
+   * Set the 'selected' state of all the entries in the array
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to set
+   * @param {boolean}  set      Value to set; one of factory.SET_SEL, factory.CLR_SEL or factory.TOGGLE_SEL
+   * @param {function} callback Optional function to call with each element
+   */
+  function setSelected(list, set, callback) {
+    var selCount = 0;
+    if (list) {
+      var forceSet = (set === factory.SET_SEL),
+        forceClr = (set === factory.CLR_SEL),
+        toggle = (set === factory.TOGGLE_SEL);
+      if (forceSet || forceClr || toggle) {
+
+        listForEach(list, function (entry) {
+          if (forceSet || (toggle && !entry.isSelected)) {
+            entry.isSelected = true;
+          } else if (entry.isSelected) {
+            delete entry.isSelected;
+          }
+          if (entry.isSelected) {
+            ++selCount;
+          }
+          if (callback) {
+            callback(entry);
+          }
+        });
+      }
+    }
+    return selCount;
+  }
+
+  /**
+   * Return an array of 'selected' entries 
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to extract selected items from
+   * @returns {Array} Array of selected items
+   */
+  function getSelectedList(list) {
+    var selectedList = [];
+
+    listForEach(list, function (entry) {
+      if (entry.isSelected) {
+        selectedList.push(entry);
+      }
+    });
+
+    return selectedList;
+  }
+
+  /**
+   * Process each entry in the list
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to count selected items from
+   * @param {function} func   Function to process entry with
+   */
+  function listForEach (list, func) {
+    if (list.isResourceList) {
+      // process as ResourceList
+      list.forEachInList(function (entry) {
+        func(entry);
+      });
+    } else {
+      // process as array
+      angular.forEach(list, function (entry) {
+        func(entry);
+      });
+    }
+  }
+
+  
+  /**
+   * Return number of 'selected' entries
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to count selected items from
+   * @returns {number} Number of selected items
+   */
+  function countSelected(list) {
+    var count = 0;
+
+    listForEach(list, function (entry) {
+      if (entry.isSelected) {
+        ++count;
+      }
+    });
+    return count;
+  }
+
+  /**
+   * Find the first selected entry in the list
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to search
+   * @param {number}   start     offset to start from
+   */
+  function findSelected(list, start) {
+    return listFind(list, function (entry) {
+      return entry.isSelected;
+    }, start);
+  }
+
+
+  /**
+   * Find the first unselected entry in the list
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to search
+   * @param {number}   start     offset to start from
+   */
+  function findUnselected(list, start) {
+    return listFind(list, function (entry) {
+      return !entry.isSelected;
+    }, start);
+  }
+
+
+  /**
+   * Find an entry in the list
+   * @param {Array|ResourceList} list     ResourceList or Array of objects to count selected items from
+   * @param {function} func   function to test entries in list
+   * @param {number}   start     offset to start from
+   */
+  function listFind(list, func, start) {
+    var item;
+    if (list.isResourceList) {
+      // process as ResourceList
+      item = list.findInList(function (entry) {
+        return func(entry);
+      }, start);
+    } else {
+      // process as array
+      // If argument start was passed let n be ToInteger(start); else let n be 0.
+      var n = +start || 0;
+      if (Math.abs(n) === Infinity) {
+        n = 0;
+      }
+
+      var length = list.length >>> 0,
+        value;
+
+      for (var i = n; i < length; i++) {
+        value = list[i];
+        if (func(value)) {
+          item = value;
+          break;
+        }
+      }
+    }
+    return item;
+  }
+
+
+  /**
+   * Toggle an object's 'selected' state
+   * @param   {object} entry Object to toggle state of
+   * @param   {number} count Current selected count
+   * @returns {number} Updated selected count
+   */
+  function toggleSelection (entry, count) {
+    if (count === undefined) {
+      count = 0;
+    }
+    if (!entry.isSelected) {
+      entry.isSelected = true;
+      count += 1;
+    } else {
+      entry.isSelected = false;
+      count -= 1;
+    }
+    return count;
   }
 
   
