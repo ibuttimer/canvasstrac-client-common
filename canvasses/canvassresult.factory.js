@@ -132,9 +132,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassResultFactory.$inject = ['$resource', '$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory',
+canvassResultFactory.$inject = ['$resource', '$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'surveyFactory',
   'addressFactory', 'electionFactory', 'userFactory', 'SCHEMA_CONST', 'CANVASSRES_SCHEMA', 'consoleService'];
-function canvassResultFactory($resource, $injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, surveyFactory,
+function canvassResultFactory($resource, $injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, surveyFactory,
   addressFactory, electionFactory, userFactory, SCHEMA_CONST, CANVASSRES_SCHEMA, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033

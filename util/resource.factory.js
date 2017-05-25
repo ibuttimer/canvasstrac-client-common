@@ -1410,6 +1410,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * Find an entry in this objects list using the callback function to test each of the entries 
    * @param {function} predicate function to test entries in list
    * @param {number}   start     offset to start from
+   * @return {object}   Found entry or undefined
    */
   ResourceList.prototype.findInList = function (predicate, start) {
     if (typeof predicate !== 'function') {
@@ -1437,6 +1438,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * Find the index of an entry in this objects list using the callback function to test each of the entries 
    * @param {function} predicate function to test entries in list
    * @param {number}   start     offset to start from
+   * @return {number}   Index of found entry or undefined
    */
   ResourceList.prototype.findIndexInList = function (predicate, start) {
     if (typeof predicate !== 'function') {

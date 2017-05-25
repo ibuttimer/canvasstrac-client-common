@@ -39,6 +39,7 @@ function miscUtilFactory () {
     toggleSelection: toggleSelection,
     findSelected: findSelected,
     findUnselected: findUnselected,
+    addSelectionCmds: addSelectionCmds,
     SET_SEL: 's',
     CLR_SEL: 'c',
     TOGGLE_SEL: 't'
@@ -521,6 +522,16 @@ function miscUtilFactory () {
       count -= 1;
     }
     return count;
+  }
+  
+  /**
+   * Convenience methos to add selection commands to a scope
+   * @param {object} scope Scope to add commands to
+   */
+  function addSelectionCmds (scope) {
+    scope.SET_SEL = factory.SET_SEL;
+    scope.CLR_SEL = factory.CLR_SEL;
+    scope.TOGGLE_SEL = factory.TOGGLE_SEL;
   }
 
   
