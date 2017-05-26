@@ -506,14 +506,15 @@ angular.module('ct.clientCommon')
     /**
      * Callback the specified function for each field in the schema, providing the field details as the callback arguments
      * @param {function} callback Function to callback taking the arguments:
-     *    @param {number}   schema field index
-     *    @param {object}   schema field details @see Schema.addField for details
+     *    @param {number}   schema   field index
+     *    @param {object}   schema   field details @see Schema.addField for details
+     * @param {object}   thisArg  The value of 'this' provided for the call to the callback function
      */
-    Schema.prototype.forEachField = function (callback) {
+    Schema.prototype.forEachField = function (callback, thisArg) {
       if (typeof callback === 'function') {
         var loop = true;
         for (var i = 0; loop && (i < this.fields.length); ++i) {
-          loop = callback(i, this.fields[i]);
+          loop = callback.call(thisArg, i, this.fields[i]);
           if (loop === undefined) {
             loop = true;
           }

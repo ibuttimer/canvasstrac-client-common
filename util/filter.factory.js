@@ -145,6 +145,7 @@ function filterFactory ($filter, $injector, miscUtilFactory, consoleService, SCH
   function ResourceFilter (SCHEMA_CONST, schema, base, allowBlank) {
     this.schema = schema; // keep a ref to field array
     this.filterBy = {};
+    this.lastFilter = undefined;  // last filter used
     if (miscUtilFactory.isNullOrUndefined(allowBlank)) {
       this.allowBlank = true;
     } else {
@@ -158,7 +159,7 @@ function filterFactory ($filter, $injector, miscUtilFactory, consoleService, SCH
         if (filterVal) {
           this.filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]] = filterVal;
         }
-      });
+      }, this);
     }
   }
 
@@ -171,7 +172,7 @@ function filterFactory ($filter, $injector, miscUtilFactory, consoleService, SCH
    */
   ResourceFilter.prototype.toString = function (prefix) {
     var str,
-      filterBy = this.filterBy;
+      filterBy = (this.lastFilter ? this.lastFilter : this.filterBy);
     if (!prefix) {
       str = '';
     } else {

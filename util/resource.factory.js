@@ -982,13 +982,11 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    */
   function sortResourceList (resList, getSortFunction, sortOptions, sortByValue) {
     var sortList,
-        sortFxn;
+      sortFxn;
     
     if (resList && resList.factory) {
       if (!getSortFunction) {
-        if (resList.factory) {
-          getSortFunction = resList.factory.getSortFunction;
-        }
+        getSortFunction = resList.factory.getSortFunction;
       }
       if (!sortOptions) {
         sortOptions = resList.sortOptions;
@@ -1008,8 +1006,12 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
           if (isDescendingSortOrder(sortByValue)) {
             sortList.reverse();
           }
-
-          if (resList.pager) {
+          
+          if (resList.filter.lastFilter) {
+            // reapply last filter
+            resList.applyFilter(resList.filter.lastFilter);
+          } else if (resList.pager) {
+            // update pager
             pagerFactory.updatePager(resList.pager.id, sortList);
           }
         }
@@ -1518,6 +1520,8 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     }
 
     filter = filter || {};
+    
+    this.filter.lastFilter = filter;
 
     if (!miscUtilFactory.isEmpty(filter) || !this.filter.allowBlank) {
       if (this.filter.customFunction) {

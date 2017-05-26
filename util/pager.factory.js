@@ -23,7 +23,8 @@ function pagerFactory (storeFactory) {
     newPager: newPager,
     delPager: delPager,
     getPager: getPager,
-    updatePager: updatePager
+    updatePager: updatePager,
+    addPerPageOptions: addPerPageOptions
   };
 
   return factory;
@@ -35,6 +36,15 @@ function pagerFactory (storeFactory) {
     return 'pager.' + id;
   }
 
+  /**
+   * Create a new pager
+   * @param   {string} id           Pager id
+   * @param   {Array}  items        Items for pager to paginate
+   * @param   {number} currentPage  Current page, NOTE 1-based
+   * @param   {number} itemsPerPage Number of items per page
+   * @param   {number} maxDispPages Max number of page numbers to display in page bar
+   * @returns {object} new pager
+   */
   function newPager(id, items, currentPage, itemsPerPage, maxDispPages) {
     return updatePager(id, items, currentPage, itemsPerPage, maxDispPages);
   }
@@ -104,6 +114,27 @@ function pagerFactory (storeFactory) {
     }
     return val;
   }
+  
+  /**
+   * Add per page options to a scope
+   * @param {object} scope     Scope to add to
+   * @param {number} min       Min number per page
+   * @param {number} step      Per page increment
+   * @param {number} stepCnt   Number of options
+   * @param {number} defltStep Which increment is the default option. NOTE zero-bases!
+   */
+  function addPerPageOptions (scope, min, step, stepCnt, defltStep) {
+    var perPageOpt = [];
+    
+    for (var i = 0; i < stepCnt; ++i) {
+      perPageOpt.push(min + (step * i));
+      if (i === defltStep) {
+        scope.perPage = perPageOpt[perPageOpt.length - 1];
+      }
+    }
+    scope.perPageOpt = perPageOpt;
+  }
+  
 }
 
 function Pager(id, items, totalItems, currentPage, itemsPerPage, maxDispPages, totalPages, startPage, endPage, startIndex, endIndex, pages, pageItems) {
