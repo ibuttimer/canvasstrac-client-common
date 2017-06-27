@@ -8,50 +8,17 @@ angular.module('ct.clientCommon')
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'ADDR1', modelName: 'addrLine1',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'ADDR2', modelName: 'addrLine2',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'ADDR3', modelName: 'addrLine3',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'TOWN', modelName: 'town',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'CITY', modelName: 'city',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'COUNTY', modelName: 'county',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'COUNTRY', modelName: 'country',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'PCODE', modelName: 'postcode',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'GPS', modelName: 'gps',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'VOTEDIST', modelName: 'votingDistrict',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'OWNER', modelName: 'owner',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      }
+      schemaProvider.getStringModelPropArgs('addrLine1', { field: 'ADDR1' }),
+      schemaProvider.getStringModelPropArgs('addrLine2', { field: 'ADDR2' }),
+      schemaProvider.getStringModelPropArgs('addrLine3', { field: 'ADDR3' }),
+      schemaProvider.getStringModelPropArgs('town', { field: 'TOWN' }),
+      schemaProvider.getStringModelPropArgs('city', { field: 'CITY' }),
+      schemaProvider.getStringModelPropArgs('county', { field: 'COUNTY' }),
+      schemaProvider.getStringModelPropArgs('country', { field: 'COUNTRY' }),
+      schemaProvider.getStringModelPropArgs('postcode', { field: 'PCODE' }),
+      schemaProvider.getStringModelPropArgs('gps', { field: 'GPS' }),
+      schemaProvider.getObjectIdModelPropArgs('votingDistrict', undefined, undefined, undefined, undefined, { field: 'VOTEDIST' }),
+      schemaProvider.getObjectIdModelPropArgs('owner', undefined, undefined, undefined, undefined, { field: 'OWNER' })
     ],
       ids = {},
       modelProps = [];
@@ -102,101 +69,42 @@ angular.module('ct.clientCommon')
       });
   }])
 
-  .filter('filterAddr', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
-
-    function filterAddrFilter (input, schema, filterBy) {
-      
-      // address specific filter function
-      var out = [];
-
-      if (!miscUtilFactory.isEmpty(filterBy)) {
-        var testCnt = 0,  // num of fields to test as speced by filter
-          matchCnt;       // num of fields matching filter
-        schema.forEachField(function(idx, fieldProp) {
-          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
-            ++testCnt;
-          }
-        });
-        angular.forEach(input, function (addr) {
-          matchCnt = 0;
-          schema.forEachField(function(idx, fieldProp) {
-            var filterVal = filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]];  // filter uses dialog properties
-            if (filterVal) {
-              filterVal = filterVal.toLowerCase();
-              // apply OR logic to multiple model fields
-              var match = false,
-                model = fieldProp[SCHEMA_CONST.MODEL_PROP];
-              for (var j = 0; !match && (j < model.length); ++j) {
-                var addrVal = addr[model[j]];
-                if (addrVal) {
-                  match = (addrVal.toLowerCase().indexOf(filterVal) >= 0);
-                }
-              }
-              if (match) {
-                ++matchCnt;
-                if (matchCnt === testCnt) {
-                  out.push(addr);
-                }
-              }
-            }
-          });
-        });
-      } else {
-        out = input;
-      }
-      return out;
-    }
-
-    return filterAddrFilter;
-  }])
-
   .factory('addressFactory', addressFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-addressFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'consoleService', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'SCHEMA_CONST', 'ADDRSCHEMA'];
+addressFactory.$inject = ['$filter', '$injector', 'baseURL', 'consoleService', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'SCHEMA_CONST', 'ADDRSCHEMA'];
 
-function addressFactory($resource, $filter, $injector, baseURL, consoleService, storeFactory, resourceFactory, compareFactory, filterFactory, SCHEMA_CONST, ADDRSCHEMA) {
+function addressFactory($filter, $injector, baseURL, consoleService, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, SCHEMA_CONST, ADDRSCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'addressFactory',
-      getAddresses: getAddresses,
-      getCount: getCount,
 
       readRspObject: readRspObject,
 
-      setFilter: setFilter,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      forEachSchemaField: forEachAddrSchemaField,
-      getSortOptions: getSortOptions,
       getSortFunction: getSortFunction,
-      getFilteredResource: getFilteredResource,
       stringifyAddress: stringifyAddress
     },
     con = consoleService.getLogger(factory.NAME);
 
   resourceFactory.registerStandardFactory(factory.NAME, {
-    storeId: storeId,
+    storeId: ADDRSCHEMA.ID_TAG,
     schema: ADDRSCHEMA.SCHEMA,
-    addInterface: factory // add standard factory functions to this factory
+    sortOptions: ADDRSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      address: resourceFactory.getResourceConfigWithId('addresses'),
+      count: resourceFactory.getResourceConfig('addresses/count')
+    }
   });
   
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getAddresses () {
-    return resourceFactory.getResources('addresses');
-  }
-
-  function getCount () {
-    return resourceFactory.getCount('addresses');
-  }
 
   /**
    * Read a server response address object
@@ -224,130 +132,6 @@ function addressFactory($resource, $filter, $injector, baseURL, consoleService, 
     return object;
   }
 
-  /**
-   * Create storeFactory id
-   * @param {string}   id   Factory id to generate storeFactory id from
-   */
-  function storeId(id) {
-    return ADDRSCHEMA.ID_TAG + id;
-  }
-
-  /**
-   * Get addresses 
-   * @param {object}   resList              ResourceList to save result to
-   * @param {object}   [filter=newFilter()] ResourceFilter to filter raw results
-   * @param {function} success              Function to call on success
-   * @param {function} failure              Function to call on failure
-   * @param {function} forEachSchemaField   Schema field iterator
-   */
-  function getFilteredResource (resList, filter, success, failure, forEachSchemaField) {
-    
-    filter = filter || newFilter();
-
-    if (typeof filter === 'function') {
-      forEachSchemaField = failure;
-      failure = success;
-      filter = newFilter();
-    }
-    if (!forEachSchemaField) {
-      forEachSchemaField = forEachAddrSchemaField;
-    }
-
-    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
-
-    resList.setList([]);
-    getAddresses().query(query).$promise.then(
-      // success function
-      function (response) {
-        // add indices
-        for (var i = 0; i < response.length; ++i) {
-          response[i].index = i + 1;
-        }
-        // response from server contains result of filter request
-        resList.setList(response, storeFactory.APPLY_FILTER);
-
-        if (success){
-          success(response);
-        }
-      },
-      // error function
-      function (response) {
-        if (failure){
-          failure(response);
-        }
-      }
-    );
-  }
-  
-  /**
-   * Set the filter for a ResourceList
-   * @param {string} id                   ResourceList id
-   * @param {object} [filter=newFilter()] ResourceFilter to set
-   * @param {number} flags                storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  function setFilter (id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions () {
-    return ADDRSCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachAddrSchemaField (callback) {
-    ADDRSCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  /**
-   * Generate a new ResourceFilter
-   * @param {object}   base         Base object to generate filter from
-   * @param {function} customFilter Custom filter function
-   * @param {boolean}  allowBlank   Allow blanks flag
-   */
-  function newFilter (base, customFilter, allowBlank) {
-    if (typeof base === 'function') {
-      allowBlank = customFilter;
-      customFilter = base;
-      base = undefined;
-    }
-    if (typeof customFilter === 'boolean') {
-      allowBlank = customFilter;
-      customFilter = undefined;
-    }
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(ADDRSCHEMA.SCHEMA, base, allowBlank);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-  
-  /**
-   * Generate a filtered list
-   * @param {object}   reslist    ResourceList object to filter
-   * @param {object}   filter     Filter object to use (not ResourceFilter)
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array}  filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // address specific filter function
-    return filterFactory.getFilteredList('filterAddr', reslist, filter, xtraFilter);
-  }
-  
-  /**
-   * Address-specific filter function
-   * @param {object} reslist ResourceList object
-   * @param {object} filter  Filter object to use (not ResourceFilter)
-   */
-  function filterFunction (reslist, filter) {
-    // address specific filter function
-    reslist.filterList = getFilteredList(reslist, filter);
-  }
-  
-  
   function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
     if (typeof sortFxn === 'object') {
@@ -403,7 +187,7 @@ function addressFactory($resource, $filter, $injector, baseURL, consoleService, 
       join = ', ';
     }
     var str = '';
-    forEachAddrSchemaField(function (idx, fieldProp) {
+    factory.forEachSchemaField(function (fieldProp) {
       fieldProp[SCHEMA_CONST.MODEL_PROP].forEach(function (property) {
         if (addr[property]) {
           var value = addr[property].trim();
@@ -416,7 +200,6 @@ function addressFactory($resource, $filter, $injector, baseURL, consoleService, 
     });
     return str;
   }
-
 
 }
 

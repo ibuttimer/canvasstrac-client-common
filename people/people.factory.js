@@ -4,34 +4,16 @@
 
 angular.module('ct.clientCommon')
 
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'ADDRSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, ADDRSCHEMA) {
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'FNAME', modelName: 'firstname',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'LNAME', modelName: 'lastname',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'NOTE', modelName: 'note',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'ADDR', modelName: 'address',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'CONTACT', modelName: 'contactDetails',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'OWNER', modelName: 'owner',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      }
+      schemaProvider.getStringModelPropArgs('firstname', { field: 'FNAME' }),
+      schemaProvider.getStringModelPropArgs('lastname', { field: 'LNAME' }),
+      schemaProvider.getStringModelPropArgs('note', { field: 'NOTE' }),
+      schemaProvider.getObjectIdModelPropArgs('address', 'addressFactory', 'address', ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDR' }),
+      schemaProvider.getObjectIdModelPropArgs('contactDetails', undefined, undefined, undefined, undefined,  { field: 'CONTACT' }),
+      schemaProvider.getObjectIdModelPropArgs('owner', undefined, undefined, undefined, undefined, { field: 'OWNER' })
     ],
       ids = {},
       modelProps = [];
@@ -76,26 +58,25 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-peopleFactory.$inject = ['$resource', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'SCHEMA_CONST', 'PEOPLESCHEMA'];
+peopleFactory.$inject = ['baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'SCHEMA_CONST', 'PEOPLESCHEMA'];
 
-function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, SCHEMA_CONST, PEOPLESCHEMA) {
+function peopleFactory (baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, SCHEMA_CONST, PEOPLESCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
     NAME: 'peopleFactory',
-    getPeople: getPeople,
-    getCount: getCount,
-    setFilter: setFilter,
-    newFilter: newFilter,
-    forEachSchemaField: forEachPeopleSchemaField,
-    getSortOptions: getSortOptions,
     getSortFunction: getSortFunction
   };
 
   resourceFactory.registerStandardFactory(factory.NAME, {
-    storeId: storeId,
+    storeId: PEOPLESCHEMA.ID_TAG,
     schema: PEOPLESCHEMA.SCHEMA,
-    addInterface: factory // add standard factory functions to this factory
+    sortOptions: PEOPLESCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      person: resourceFactory.getResourceConfigWithId('people'),
+      count: resourceFactory.getResourceConfig('people/count')
+    }
   });
   
   return factory;
@@ -103,38 +84,6 @@ function peopleFactory ($resource, baseURL, storeFactory, resourceFactory, compa
   /* function implementation
     -------------------------- */
 
-  function getPeople () {
-    return resourceFactory.getResources('people');
-  }
-
-  function getCount () {
-    return resourceFactory.getCount('people');
-  }
-  
-  function storeId (id) {
-    return PEOPLESCHEMA.ID_TAG + id;
-  }
-
-  function setFilter (id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions () {
-    return PEOPLESCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachPeopleSchemaField (callback) {
-    PEOPLESCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  function newFilter (base) {
-    return filterFactory.newResourceFilter(PEOPLESCHEMA.SCHEMA, base);
-  }
-  
-  
   function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
     if (typeof sortFxn === 'object') {

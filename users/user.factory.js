@@ -4,7 +4,7 @@
 
 angular.module('ct.clientCommon')
 
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'ROLESCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA, ROLESCHEMA) {
 
     var i, uidx = 0,
       ids = {},
@@ -15,18 +15,9 @@ angular.module('ct.clientCommon')
 
       details = [
         SCHEMA_CONST.ID,
-        {
-          field: 'UNAME', modelName: 'username',
-          dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-        },
-        {
-          field: 'ROLE', modelName: 'role', factory: 'roleFactory',
-          dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-        },
-        {
-          field: 'PERSON', modelName: 'person', factory: 'peopleFactory',
-          dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-        }
+        schemaProvider.getStringModelPropArgs('username', { field: 'UNAME' }),
+        schemaProvider.getObjectIdModelPropArgs('role', 'roleFactory', 'role', ROLESCHEMA, ROLESCHEMA.IDs.ID, { field: 'ROLE' }),
+        schemaProvider.getObjectIdModelPropArgs('person', 'peopleFactory', 'person', PEOPLESCHEMA, PEOPLESCHEMA.IDs.ID, { field: 'PERSON' })
       ];
 
     // user schema is a combination of the person & address
@@ -71,6 +62,8 @@ angular.module('ct.clientCommon')
 
       USER_UNAME_IDX =
         schema.addFieldFromModelProp('uname', 'Username', ids.UNAME),
+      USER_ROLE_IDX =
+        schema.addFieldFromModelProp('role', 'Role', ids.ROLE),
 
       sortOptions,  // user schema sort options
       sortOptionIndices = // dialog properties of sort options
@@ -80,18 +73,14 @@ angular.module('ct.clientCommon')
 
     subSchemaList.forEach(function (subSchema) {
       subSchema.schema.SCHEMA.forEachField(
-        function (index, fieldProp) {
-          schema.addField(
-            fieldProp[SCHEMA_CONST.DIALOG_PROP],
-            fieldProp[SCHEMA_CONST.DISPLAY_PROP],
-            fieldProp[SCHEMA_CONST.MODEL_PROP],
-            fieldProp[SCHEMA_CONST.TYPE_PROP], {
-              path: subSchema.path,
-              cb: function (field) {
-                // save dialog property for index configuration
-                sortOptionIndices.push(field.dialog);
-              }
-            });
+        function (schemaField) {
+          schema.addFieldFromField(schemaField, {
+            path: subSchema.path,
+            cb: function (field) {
+              // save dialog property for index configuration
+              sortOptionIndices.push(field.dialog);
+            }
+          });
         });
     });
 
@@ -126,6 +115,7 @@ angular.module('ct.clientCommon')
       MODELPROPS: modelProps,
 
       USER_UNAME_IDX: USER_UNAME_IDX,
+      USER_ROLE_IDX: USER_ROLE_IDX,
 
       SCHEMA: schema,
 
@@ -135,96 +125,36 @@ angular.module('ct.clientCommon')
     $provide.constant('USERSCHEMA', constToProvide);
   }])
 
-  .filter('filterUser', ['SCHEMA_CONST', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'miscUtilFactory', function (SCHEMA_CONST, PEOPLESCHEMA, ADDRSCHEMA, miscUtilFactory) {
-    
-    function filterUserFilter (input, schema, filterBy) {
-      
-      // user specific filter function
-      var out = [];
-
-      if (!miscUtilFactory.isEmpty(filterBy)) {
-        var testCnt = 0,  // num of fields to test as speced by filter
-          matchCnt;       // num of fields matching filter
-        schema.forEachField(function(idx, fieldProp) {
-          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
-            ++testCnt;
-          }
-        });
-        angular.forEach(input, function (user) {
-          matchCnt = 0;
-          schema.forEachField(function(idx, fieldProp) {
-            var filterVal = filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]];  // filter uses dialog properties
-            if (filterVal) {
-              var userObj = user,
-                path = fieldProp[SCHEMA_CONST.PATH_PROP];
-              if (path) {
-                for (var i = 0; !miscUtilFactory.isNullOrUndefined(userObj) && (i < path.length); ++i) {
-                  userObj = userObj[path[i]];
-                }
-              }
-              if (userObj) {
-                filterVal = filterVal.toLowerCase();
-                // apply OR logic to multiple model fields
-                var match = false,
-                  model = fieldProp[SCHEMA_CONST.MODEL_PROP];
-                for (var j = 0; !match && (j < model.length); ++j) {
-                  var userVal = userObj[model[j]];
-                  if (userVal) {
-                    match = (userVal.toLowerCase().indexOf(filterVal) >= 0);
-                  }
-                }
-                if (match) {
-                  ++matchCnt;
-                  if (matchCnt === testCnt) {
-                    out.push(user);
-                  }
-                }
-              }
-            }
-          });
-        });
-      } else {
-        out = input;
-      }
-      return out;
-    }
-    
-    return filterUserFilter;
-  }])
-
   .factory('userFactory', userFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-userFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory',
+userFactory.$inject = ['$injector', '$filter', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory',
   'SCHEMA_CONST', 'USERSCHEMA'];
 
-function userFactory($resource, $injector, $filter, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory,
+function userFactory($injector, $filter, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory,
   SCHEMA_CONST, USERSCHEMA) {
 
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
     NAME: 'userFactory',
-    getUsers: getUsers,
-    getCount: getCount,
-    setFilter: setFilter,
-    newFilter: newFilter,
-    getFilteredList: getFilteredList,
-    forEachSchemaField: forEachUserSchemaField,
-    getSortOptions: getSortOptions,
     getSortFunction: getSortFunction,
-    getFilteredResource: getFilteredResource,
     readUserRsp: readUserRsp
   },
   comparinators = [];
 
   resourceFactory.registerStandardFactory(factory.NAME, {
-    storeId: storeId,
+    storeId: USERSCHEMA.ID_TAG,
     schema: USERSCHEMA.SCHEMA,
-    addInterface: factory // add standard factory functions to this factory
+    sortOptions: USERSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      user: resourceFactory.getResourceConfigWithId('users'),
+      count: resourceFactory.getResourceConfig('users/count')
+    }
   });
 
   // make an array of comparinator objects based on sort indices
@@ -242,53 +172,6 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
 
   /* function implementation
     -------------------------- */
-
-  function getUsers () {
-    return resourceFactory.getResources('users');
-  }
-
-  function getCount () {
-    return resourceFactory.getCount('users');
-  }
-  
-  function getFilteredResource (resList, filter, success, failure, forEachSchemaField) {
-    
-    filter = filter || newFilter();
-
-    if (typeof filter === 'function') {
-      forEachSchemaField = failure;
-      failure = success;
-      filter = newFilter();
-    }
-    if (!forEachSchemaField) {
-      forEachSchemaField = forEachUserSchemaField;
-    }
-
-    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
-
-    resList.setList([]);
-    getUsers().query(query).$promise.then(
-      // success function
-      function (response) {
-        // add indices
-        for (var i = 0; i < response.length; ++i) {
-          response[i].index = i + 1;
-        }
-        // response from server contains result of filter request
-        resList.setList(response, storeFactory.APPLY_FILTER);
-        
-        if (success){
-          success(response);
-        }
-      },
-      // error function
-      function (response) {
-        if (failure){
-          failure(response);
-        }
-      }
-    );
-  }
 
   /**
    * Read a server response user object
@@ -349,81 +232,6 @@ function userFactory($resource, $injector, $filter, storeFactory, resourceFactor
     return resourceFactory.storeServerRsp(response, storeArgs);
   }
 
-  /**
-   * Create storefactory id
-   * @param {string}   id       id within this factory
-   * @return {string}  storefactory id
-   */
-  function storeId(id) {
-    return USERSCHEMA.ID_TAG + id;
-  }
-
-  /**
-   * Set the filter for a user ResourceList object
-   * @param {string} id     Factory id of object
-   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
-   * @param {number} flags  storefactory flags
-   * @returns {object} user ResourceList object
-   */
-  function setFilter(id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  /**
-   * Get the default sort options for a user ResourceList object
-   * @returns {object} user ResourceList sort options
-   */
-  function getSortOptions() {
-    return USERSCHEMA.SORT_OPTIONS;
-  }
-
-  /**
-   * Execute the callback on each of the schema fields
-   */
-  function forEachUserSchemaField(callback) {
-    USERSCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  /**
-   * Get a new filter object
-   * @param {object} base           filter base object
-   * @param {function} customFilter custom filter function
-   * @returns {object} user ResourceList filter object
-   */
-  function newFilter(base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(USERSCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-
-  /**
-   * Generate a filtered list
-   * @param {object}   reslist    User ResourceList object to filter
-   * @param {object}   filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array}    filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // user specific filter function
-    return filterFactory.getFilteredList('filterUser', reslist, filter, xtraFilter);
-  }
-  
-  /**
-   * Default user ResourceList custom filter function
-   * @param {object} reslist    user ResourceList object to filter
-   * @param {object} filter     filter to apply
-   */
-  function filterFunction(reslist, filter) {
-    // user specific filter function
-    reslist.filterList = getFilteredList(reslist, filter);
-  }
-  
   /**
    * Get the sort function for a user ResourceList
    * @param   {object} sortOptions  List of possible sort option

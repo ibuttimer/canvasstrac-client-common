@@ -8,26 +8,11 @@ angular.module('ct.clientCommon')
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'TYPE', modelName: 'type',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.NUMBER
-      },
-      {
-        field: 'QUESTION', modelName: 'question',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'OPTIONS', modelName: 'options',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.STRING_ARRAY
-      },
-      {
-        field: 'RANGEMIN', modelName: 'rangeMin',
-        dfltValue: 1, type: SCHEMA_CONST.FIELD_TYPES.NUMBER
-      },
-      {
-        field: 'RANGEMAX', modelName: 'rangeMax',
-        dfltValue: 10, type: SCHEMA_CONST.FIELD_TYPES.NUMBER
-      }
+      schemaProvider.getNumberModelPropArgs('type', undefined, { field: 'TYPE' }),
+      schemaProvider.getStringModelPropArgs('question', { field: 'QUESTION' }),
+      schemaProvider.getStringArrayModelPropArgs('options', { field: 'OPTIONS' }),
+      schemaProvider.getNumberModelPropArgs('rangeMin', 1, { field: 'RANGEMIN' }),
+      schemaProvider.getNumberModelPropArgs('rangeMax', 10, { field: 'RANGEMAX' })
     ],
       ids = {},
       modelProps = [];
@@ -122,48 +107,19 @@ angular.module('ct.clientCommon')
     });
   }])
 
-  .filter('filterQues', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
-
-    function filterQuesFilter(input, schema, filterBy) {
-
-      // question specific filter function
-      var out = [];
-
-      if (!miscUtilFactory.isEmpty(filterBy)) {
-        var testCnt = 0;  // num of fields to test as speced by filter
-
-        schema.forEachField(function(idx, fieldProp) {
-          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
-            ++testCnt;
-          }
-        });
-        
-        // TODO question specific filter function
-        out = input;
-
-      } else {
-        out = input;
-      }
-      return out;
-    }
-
-    return filterQuesFilter;
-  }])
-
   .factory('questionFactory', questionFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-questionFactory.$inject = ['$resource', '$injector', 'baseURL', 'SCHEMA_CONST', 'QUESTIONSCHEMA', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'consoleService'];
+questionFactory.$inject = ['$injector', 'baseURL', 'SCHEMA_CONST', 'QUESTIONSCHEMA', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'consoleService'];
 
-function questionFactory($resource, $injector, baseURL, SCHEMA_CONST, QUESTIONSCHEMA, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, consoleService) {
+function questionFactory($injector, baseURL, SCHEMA_CONST, QUESTIONSCHEMA, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'questionFactory',
-      getQuestions: getQuestions,
       getQuestionTypes: getQuestionTypes,
       getQuestionTypeObj: getQuestionTypeObj,
       getQuestionTypeName: getQuestionTypeName,
@@ -177,40 +133,24 @@ function questionFactory($resource, $injector, baseURL, SCHEMA_CONST, QUESTIONSC
       readResponse: readResponse,
       storeRspObject: storeRspObject,
 
-      setFilter: setFilter,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      forEachSchemaField: forEachQuesSchemaField,
-      getSortOptions: getSortOptions,
       getSortFunction: getSortFunction,
-      getFilteredResource: getFilteredResource
     },
     con = consoleService.getLogger(factory.NAME);
 
   resourceFactory.registerStandardFactory(factory.NAME, {
-    storeId: storeId,
+    storeId: QUESTIONSCHEMA.ID_TAG,
     schema: QUESTIONSCHEMA.SCHEMA,
-    addInterface: factory // add standard factory functions to this factory
+    sortOptions: QUESTIONSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      question: resourceFactory.getResourceConfigWithId('questions')
+    }
   });
 
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getQuestions () {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-
-      add custom update method
-    */
-    return $resource(baseURL + 'questions/:id', {id:'@id'}, {'update': {method: 'PUT'}});
-  }
 
   /**
     * Return all the possible question types
@@ -372,120 +312,6 @@ function questionFactory($resource, $injector, baseURL, SCHEMA_CONST, QUESTIONSC
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
-  /**
-   * Get questions 
-   * @param {object}   resList              ResourceList to save result to
-   * @param {object}   [filter=newFilter()] ResourceFilter to filter raw results
-   * @param {function} success              Function to call on success
-   * @param {function} failure              Function to call on failure
-   * @param {function} forEachSchemaField   Schema field iterator
-   */
-  function getFilteredResource(resList, filter, success, failure, forEachSchemaField) {
-
-    filter = filter || newFilter();
-
-    if (typeof filter === 'function') {
-      forEachSchemaField = failure;
-      failure = success;
-      filter = newFilter();
-    }
-    if (!forEachSchemaField) {
-      forEachSchemaField = forEachQuesSchemaField;
-    }
-
-    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
-
-    resList.setList([]);
-    getQuestions().query(query).$promise.then(
-      // success function
-      function (response) {
-        // add indices
-        for (var i = 0; i < response.length; ++i) {
-          response[i].index = i + 1;
-        }
-        // response from server contains result of filter request
-        resList.setList(response, storeFactory.APPLY_FILTER);
-
-        if (success) {
-          success(response);
-        }
-      },
-      // error function
-      function (response) {
-        if (failure) {
-          failure(response);
-        }
-      }
-    );
-  }
-
-  /**
-   * Create storeFactory id
-   * @param {string}   id   Factory id to generate storeFactory id from
-   */
-  function storeId(id) {
-    return QUESTIONSCHEMA.ID_TAG + id;
-  }
-  
-  /**
-   * Set the filter for a ResourceList
-   * @param {string} id                   ResourceList id
-   * @param {object} [filter=newFilter()] ResourceFilter to set
-   * @param {number} flags                storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  function setFilter (id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions () {
-    return QUESTIONSCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachQuesSchemaField (callback) {
-    QUESTIONSCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  /**
-   * Generate a new ResourceFilter
-   * @param {object}   base         Base object to generate filter from
-   * @param {function} customFilter Custom filter function
-   * @param {boolean}  allowBlank   Allow blanks flag
-   */
-  function newFilter (base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(QUESTIONSCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-  
-  /**
-   * Generate a filtered list
-   * @param {object}   reslist    Address ResourceList object to filter
-   * @param {object}   filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array}    filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    return filterFactory.getFilteredList('filterQues', reslist, filter, xtraFilter);
-  }
-  
-  /**
-   * Question-specific filter function
-   * @param {object} reslist ResourceList object
-   * @param {object} filter  Filter object to use (not ResourceFilter)
-   */
-  function filterFunction (reslist, filter) {
-    // question specific filter function
-    reslist.filterList = getFilteredList(reslist, filter);
-  }
-  
-  
   function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
     if (typeof sortFxn === 'object') {

@@ -4,44 +4,19 @@
 
 angular.module('ct.clientCommon')
 
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'ELECTIONSCHEMA', 'SURVEYSCHEMA', 'ADDRSCHEMA', 'USERSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, ELECTIONSCHEMA, SURVEYSCHEMA, ADDRSCHEMA, USERSCHEMA) {
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'NAME', modelName: 'name',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      { field: 'DESCRIPTION', modelName: 'description', 
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING },
-      {
-        field: 'STARTDATE', modelName: 'startDate',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE
-      },
-      {
-        field: 'ENDDATE', modelName: 'endDate',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE
-      },
-      {
-        field: 'ELECTION', modelName: 'election', factory: 'electionFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'SURVEY', modelName: 'survey', factory: 'surveyFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'ADDRESSES', modelName: 'addresses', factory: 'addressFactory',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
-      },
-      {
-        field: 'CANVASSERS', modelName: 'canvassers', factory: 'userFactory',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
-      },
-      {
-        field: 'RESULTS', modelName: 'results', factory: 'canvassResultFactory',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
-      }
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
+      schemaProvider.getDateModelPropArgs('startDate', undefined, { field: 'STARTDATE' }),
+      schemaProvider.getDateModelPropArgs('endDate', undefined, { field: 'ENDDATE' }),
+      schemaProvider.getObjectIdModelPropArgs('election', 'electionFactory', 'election', ELECTIONSCHEMA, ELECTIONSCHEMA.IDs.ID, { field: 'ELECTION' }),
+      schemaProvider.getObjectIdModelPropArgs('survey', 'surveyFactory', 'survey', SURVEYSCHEMA, SURVEYSCHEMA.IDs.ID, { field: 'SURVEY' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('addresses', 'addressFactory', 'address',  ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDRESSES' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('canvassers', 'userFactory', 'user', USERSCHEMA, USERSCHEMA.IDs.ID, { field: 'CANVASSERS' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('results', 'canvassResultFactory', 'result', undefined, undefined, { field: 'RESULTS' })
     ],
       ids = {},
       modelProps = [],
@@ -93,65 +68,26 @@ angular.module('ct.clientCommon')
     });
   }])
 
-  .filter('filterCanvass', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
-
-    function filterCanvassFilter(input, schema, filterBy) {
-
-      // canvass specific filter function
-      var out = [];
-
-      if (!miscUtilFactory.isEmpty(filterBy)) {
-        var testCnt = 0;  // num of fields to test as speced by filter
-
-        schema.forEachField(function(idx, fieldProp) {
-          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
-            ++testCnt;
-          }
-        });
-        
-      // TODO canvass specific filter function
-        out = input;
-
-      } else {
-        out = input;
-      }
-      return out;
-    }
-
-    return filterCanvassFilter;
-  }])
-
   .factory('canvassFactory', canvassFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassFactory.$inject = ['$resource', '$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory', 'questionFactory',
+canvassFactory.$inject = ['$injector', 'baseURL', 'storeFactory', 'resourceFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory', 'questionFactory',
   'addressFactory', 'electionFactory', 'userFactory', 'canvassResultFactory', 'SCHEMA_CONST', 'CANVASSSCHEMA', 'SURVEYSCHEMA', 'RESOURCE_CONST', 'CHARTS', 'consoleService'];
-function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFactory, filterFactory, miscUtilFactory, surveyFactory, questionFactory,
+function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filterFactory, miscUtilFactory, surveyFactory, questionFactory,
   addressFactory, electionFactory, userFactory, canvassResultFactory, SCHEMA_CONST, CANVASSSCHEMA, SURVEYSCHEMA, RESOURCE_CONST, CHARTS, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'canvassFactory',
-      getCanvasses: getCanvasses,
       readRspObject: readRspObject,
       readResponse: readResponse,
 
-      setFilter: setFilter,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      forEachSchemaField: forEachCanvassSchemaField,
-      getSortOptions: getSortOptions,
       getSortFunction: getSortFunction,
-      getFilteredResource: getFilteredResource,
 
       storeRspObject: storeRspObject,
-      setLabeller: setLabeller,
-      linkCanvasserToAddr: linkCanvasserToAddr,
-      unlinkAddrFromCanvasser: unlinkAddrFromCanvasser,
-      unlinkAddrListFromCanvasser: unlinkAddrListFromCanvasser,
 
       processAddressResultsLink: processAddressResultsLink,
       ADDR_RES_LINKADDRESS: 'addrResLinkAddr',  // link address flag for linking addresses & results
@@ -161,23 +97,22 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
       QUES_RES_LINKRES: 'quesResLinkRes'    // link results flag for linking questions & results
 
     },
-    con = consoleService.getLogger(factory.NAME),
-    labeller;
+    con = consoleService.getLogger(factory.NAME);
 
   resourceFactory.registerStandardFactory(factory.NAME, {
-    storeId: storeId,
+    storeId: CANVASSSCHEMA.ID_TAG,
     schema: CANVASSSCHEMA.SCHEMA,
-    addInterface: factory // add standard factory functions to this factory
+    sortOptions: CANVASSSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      canvass: resourceFactory.getResourceConfigWithId('canvasses')
+    }
   });
 
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getCanvasses () {
-    return resourceFactory.getResources('canvasses');
-  }
 
   /**
    * Read a server response canvass object
@@ -265,14 +200,6 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     return value;
   }
 
-  /**
-   * Set the labeling function
-   * @param {function} labelfunc Function to return label class
-   */
-  function setLabeller (labelfunc) {
-    labeller = labelfunc;
-  }
-  
   /**
    * Read a canvass response from the server
    * @param {object}   response   Server response
@@ -545,218 +472,6 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     return 'optIdx_' + option;
   }
   
-  
-  /**
-   * Link the specified canvasser and address
-   * @param {object}   canvasser  Canvasser object to link
-   * @param {object}   addr       Address object to link
-   */
-  function linkCanvasserToAddr (canvasser, addr) {
-    if (!canvasser.addresses) {
-      canvasser.addresses = [];
-    }
-    if (canvasser.addresses.findIndex(elementTest, addr) < 0) {
-      canvasser.addresses.push(addr._id);
-    }
-
-    addr.canvasser = canvasser._id;
-    var badge = '';
-    if (canvasser.person.firstname) {
-      badge += getFirstLetters(canvasser.person.firstname);
-    }
-    if (canvasser.person.lastname) {
-      badge += getFirstLetters(canvasser.person.lastname);
-    }
-    addr.badge = badge;
-    
-    if (!canvasser.labelClass) {
-      if (labeller) {
-        canvasser.labelClass = labeller();
-      }
-    }
-    addr.labelClass = canvasser.labelClass;
-  }
-  
-  /**
-   * Get the first letters of all words in a string
-   * @param {string}   str  String to get leading letter from
-   * @return {string}  String of leading letters
-   */
-  function getFirstLetters (str) {
-    var splits = str.split(' '),
-      letters = '';
-    splits.forEach(function (split) {
-      letters += split.charAt(0);
-    });
-    return letters;
-  }
-  
-  /**
-   * Utility function to find id match
-   * NOTE: needs to be called with bound thisArg
-   * @param   {object}  element Object to test
-   * @returns {boolean} true if id matches
-   */
-  function elementIdTest (element) {
-    /*jshint validthis:true */
-    return (element._id === this);
-  }
-
-  /**
-   * Utility function to find id match
-   * NOTE: needs to be called with bound thisArg
-   * @param   {string}  element Id to test for
-   * @returns {boolean} true if id matches
-   */
-  function elementTest (element) {
-    /*jshint validthis:true */
-    return (element === this._id);
-  }
-
-  /**
-   * Unlink the specified canvasser and address
-   * @param {object}   canvasser  Canvasser object to unlink
-   * @param {object}   addr       Address object to unlink
-   */
-  function unlinkAddrFromCanvasser (canvasser, addr) {
-    if (canvasser.addresses) {
-      var idx = canvasser.addresses.findIndex(elementTest, addr);
-      if (idx >= 0) {
-        canvasser.addresses.splice(idx, 1);
-      }
-    }
-    delete addr.canvasser;
-    delete addr.badge;
-  }
-  
-  /**
-   * Unlink the specified canvasser and all addresses in a list
-   * @param {object}   canvasser  Canvasser object to unlink
-   * @param {object}   addrList   List of address objects to unlink
-   */
-  function unlinkAddrListFromCanvasser (canvasser, addrList) {
-    if (canvasser.addresses) {
-      canvasser.addresses.forEach(function (addrId) {
-        var addr = addrList.find(elementIdTest, addrId);
-        if (addr) {
-          delete addr.canvasser;
-          delete addr.badge;
-        }
-      });
-    }
-    canvasser.addresses = [];
-  }
-  
-  /**
-   * Create storeFactory id
-   * @param {string}   id   Factory id to generate storeFactory id from
-   */
-  function storeId (id) {
-    return CANVASSSCHEMA.ID_TAG + id;
-  }
-
-  /**
-   * Get canvasses
-   * @param {object}   resList              ResourceList to save result to
-   * @param {object}   [filter=newFilter()] ResourceFilter to filter raw results
-   * @param {function} success              Function to call on success
-   * @param {function} failure              Function to call on failure
-   * @param {function} forEachSchemaField   Schema field iterator
-   */
-  function getFilteredResource (resList, filter, success, failure, forEachSchemaField) {
-    
-    filter = filter || newFilter();
-
-    if (typeof filter === 'function') {
-      forEachSchemaField = failure;
-      failure = success;
-      filter = newFilter();
-    }
-    if (!forEachSchemaField) {
-      forEachSchemaField = forEachCanvassSchemaField;
-    }
-
-    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
-
-    resList.setList([]);
-    getCanvasses().query(query).$promise.then(
-      // success function
-      function (response) {
-        // add indices
-        for (var i = 0; i < response.length; ++i) {
-          response[i].index = i + 1;
-        }
-        // response from server contains result of filter request
-        resList.setList(response, storeFactory.APPLY_FILTER);
-
-        if (success){
-          success(response);
-        }
-      },
-      // error function
-      function (response) {
-        if (failure){
-          failure(response);
-        }
-      }
-    );
-  }
-
-  /**
-   * Set the filter for a ResourceList
-   * @param {string} id                   ResourceList id
-   * @param {object} [filter=newFilter()] ResourceFilter to set
-   * @param {number} flags                storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  function setFilter (id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions () {
-    return CANVASSSCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachCanvassSchemaField (callback) {
-    CANVASSSCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  /**
-   * Generate a new ResourceFilter
-   * @param {object}   base         Base object to generate filter from
-   * @param {function} customFilter Custom filter function
-   * @param {boolean}  allowBlank   Allow blanks flag
-   */
-  function newFilter (base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(CANVASSSCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-  
-  /**
-   * Generate a filtered list
-   * @param {object}   reslist    Address ResourceList object to filter
-   * @param {object}   filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array}    filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // canvass specific filter function
-    return filterFactory.getFilteredList('filterCanvass', reslist, filter, xtraFilter);
-  }
-  
-  function filterFunction (addrList, filter) {
-    // canvass specific filter function
-    addrList.filterList = getFilteredList(addrList, filter);
-  }
-  
-  
   function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);
     if (typeof sortFxn === 'object') {
@@ -774,7 +489,6 @@ function canvassFactory($resource, $injector, baseURL, storeFactory, resourceFac
     }
     return sortFxn;
   }
-
 
 }
 

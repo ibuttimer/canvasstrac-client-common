@@ -4,22 +4,13 @@
 
 angular.module('ct.clientCommon')
 
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'CANVASSSCHEMA', 'USERSCHEMA', 'ADDRSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, CANVASSSCHEMA, USERSCHEMA, ADDRSCHEMA) {
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'CANVASS', modelName: 'canvass', factory: 'canvassFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'CANVASSER', modelName: 'canvasser', factory: 'userFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'ADDRESSES', modelName: 'addresses', factory: 'addressFactory',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
-      },
+      schemaProvider.getObjectIdModelPropArgs('canvass', 'canvassFactory', 'canvass', CANVASSSCHEMA, CANVASSSCHEMA.IDs.ID, { field: 'CANVASS' }),
+      schemaProvider.getObjectIdModelPropArgs('canvasser', 'userFactory', 'user', USERSCHEMA, USERSCHEMA.IDs.ID, { field: 'CANVASSER' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('addresses', 'addressFactory', 'address', ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDRESSES' }),
       SCHEMA_CONST.CREATEDAT,
       SCHEMA_CONST.UPDATEDAT
     ],
@@ -60,59 +51,30 @@ angular.module('ct.clientCommon')
     });
   }])
 
-  .filter('filterCanvassAssignment', ['SCHEMA_CONST', 'miscUtilFactory', function (SCHEMA_CONST, miscUtilFactory) {
-
-    function filterCanvassAssignmentFilter(input, schema, filterBy) {
-
-      // canvass assignment specific filter function
-      var out = [];
-
-      if (!miscUtilFactory.isEmpty(filterBy)) {
-        var testCnt = 0;  // num of fields to test as speced by filter
-
-        schema.forEachField(function(idx, fieldProp) {
-          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
-            ++testCnt;
-          }
-        });
-        
-        // TODO filter canvass assignment function
-        out = input;
-
-      } else {
-        out = input;
-      }
-      return out;
-    }
-
-    return filterCanvassAssignmentFilter;
-  }])
-
   .factory('canvassAssignmentFactory', canvassAssignmentFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassAssignmentFactory.$inject = ['$resource', '$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory', 'canvassFactory',
-  'addressFactory', 'electionFactory', 'userFactory', 'SCHEMA_CONST', 'CANVASSASSIGN_SCHEMA', 'consoleService'];
-function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, surveyFactory, canvassFactory,
-  addressFactory, electionFactory, userFactory, SCHEMA_CONST, CANVASSASSIGN_SCHEMA, consoleService) {
+canvassAssignmentFactory.$inject = ['$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory', 'canvassFactory',
+  'addressFactory', 'electionFactory', 'userFactory', 'SCHEMA_CONST', 'CANVASSASSIGN_SCHEMA', 'consoleService', 'undoFactory'];
+function canvassAssignmentFactory($injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, surveyFactory, canvassFactory,
+  addressFactory, electionFactory, userFactory, SCHEMA_CONST, CANVASSASSIGN_SCHEMA, consoleService, undoFactory) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'canvassAssignmentFactory',
-      getCanvassAssignment: getCanvassAssignment,
-      getAssignmentCanvasses: getAssignmentCanvasses,
       readRspObject: readRspObject,
       readResponse: readResponse,
       storeRspObject: storeRspObject,
-      setFilter: setFilter,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      forEachSchemaField: forEachCanvassAssignSchemaField,
-      getSortOptions: getSortOptions,
+
       getSortFunction: getSortFunction,
+
+      linkCanvasserToAddr: linkCanvasserToAddr,
+      unlinkAddrFromCanvasser: unlinkAddrFromCanvasser,
+      unlinkAddrListFromCanvasser: unlinkAddrListFromCanvasser,
+      setLabeller: setLabeller,
 
       // objects to be extracted from response
       ADDR_CANVSR_LINKCANVASSER: 'addrCanvsrlinkCanvasser',   // canvasser whose allocation it is
@@ -130,48 +92,26 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
     addrCanvsrAddrsArgs = [factory.ADDR_CANVSR_ADDRESSARRAY, factory.ADDR_CANVSR_ADDRESSLIST],
     addrCanvsrObjArgs = addrCanvsrLinkArgs.concat(factory.ADDR_CANVSR_ADDRESSARRAY, factory.ADDR_CANVSR_CANVASSERARRAY),
     addrCanvsrListArgs = [factory.ADDR_CANVSR_CANVASSERLIST, factory.ADDR_CANVSR_ADDRESSLIST],
-    addrCanvsrAllArgs = addrCanvsrObjArgs.concat(addrCanvsrListArgs);
+    addrCanvsrAllArgs = addrCanvsrObjArgs.concat(addrCanvsrListArgs),
+    dfltLabeller;
 
   resourceFactory.registerStandardFactory(factory.NAME, {
-    storeId: storeId,
+    storeId: CANVASSASSIGN_SCHEMA.ID_TAG,
     schema: CANVASSASSIGN_SCHEMA.SCHEMA,
-    addInterface: factory // add standard factory functions to this factory
+    sortOptions: CANVASSASSIGN_SCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      assignment: resourceFactory.getResourceConfigWithId('canvassassignment', {
+                        saveMany: { method: 'POST', isArray: true }
+                      }),
+      canvasses: resourceFactory.getResourceConfig('canvassassignment/canvasses')
+    }
   });
 
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getCanvassAssignment () {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-
-      add custom update & multiple save methods
-    */
-    return $resource(baseURL + 'canvassassignment/:id', { id: '@id' },
-                      {
-                        'update': { method: 'PUT' },
-                        'saveMany': { method: 'POST', isArray: true }
-                      });
-  }
-
-  function getAssignmentCanvasses() {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-    */
-    return $resource(baseURL + 'canvassassignment/canvasses');
-  }
 
   /**
    * Read a server response canvass assignment object
@@ -300,80 +240,6 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
     return resourceFactory.storeServerRsp(obj, storeArgs);
   }
 
-  /**
-   * Create storeFactory id
-   * @param {string}   id   Factory id to generate storeFactory id from
-   */
-  function storeId (id) {
-    return CANVASSASSIGN_SCHEMA.ID_TAG + id;
-  }
-  
-  /**
-   * Set the filter for a canvass assignment ResourceList object
-   * @param {string} id     Factory id of object
-   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass assignment ResourceList object
-   */
-  function setFilter(id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  /**
-   * Get the default sort options for a canvass assignment ResourceList object
-   * @returns {object} canvass assignment ResourceList sort options
-   */
-  function getSortOptions() {
-    return CANVASSASSIGN_SCHEMA.SORT_OPTIONS;
-  }
-
-  /**
-   * Execute the callback on each of the schema fields
-   */
-  function forEachCanvassAssignSchemaField (callback) {
-    CANVASSASSIGN_SCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  /**
-   * Get a new filter object
-   * @param {object} base           filter base object
-   * @param {function} customFilter custom filter function
-   * @returns {object} canvass assignment ResourceList filter object
-   */
-  function newFilter(base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(CANVASSASSIGN_SCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-  
-  /**
-   * Generate a filtered list
-   * @param {object} reslist    canvass assignment ResourceList object to filter
-   * @param {object} filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array} filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // canvass assignment specific filter function
-    return filterFactory.getFilteredList('filterCanvassAssignment', reslist, filter, xtraFilter);
-  }
-  
-  /**
-   * Default canvass assignment ResourceList custom filter function
-   * @param {object} reslist    canvass assignment ResourceList object to filter
-   * @param {object} filter     filter to apply
-   */
-  function filterFunction(reslist, filter) {
-    // canvass assignment specific filter function
-    reslist.filterList = getFilteredList(reslist, filter);
-  }
-  
   /**
    * Get the sort function for a canvass assignment ResourceList
    * @param   {object} sortOptions  List of possible sort option
@@ -556,10 +422,20 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
 
   /**
    * Link the specified canvasser and address
-   * @param {object}   canvasser  Canvasser object to link
-   * @param {object}   addr       Address object to link
+   * @param {object}   canvasser Canvasser object to link
+   * @param {object}   addr      Address object to link
+   * @param {function} labeller  Label class generator function
+   * @param {boolean}  rtnUndo   Generate undo  object
+   * @return {object}   undo object
    */
-  function linkCanvasserToAddr (canvasser, addr, labeller) {
+  function linkCanvasserToAddr (canvasser, addr, labeller, rtnUndo) {
+    var undo;
+    
+    if (typeof labeller === 'boolean') {
+      rtnUndo = labeller;
+      labeller = undefined;
+    }
+
     if (!canvasser.addresses) {
       canvasser.addresses = [];
     }
@@ -568,13 +444,27 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
     }
 
     addr.canvasser = canvasser._id;
-    addr.badge = getFirstLetters(canvasser.person.firstname) + 
-                  getFirstLetters(canvasser.person.lastname);
+    if (!canvasser.badge) {
+      canvasser.badge = makeCanvasserBadge(canvasser);
+    }
+    addr.badge = canvasser.badge;
 
     if (!canvasser.labelClass) {
-      canvasser.labelClass = labeller();
+      if (labeller) {
+        canvasser.labelClass = labeller();
+      } else if (dfltLabeller) {
+        canvasser.labelClass = dfltLabeller();
+      }
     }
     addr.labelClass = canvasser.labelClass;
+    
+    if (rtnUndo) {
+      undo = undoFactory.newUndoStep(
+        factory.unlinkAddrFromCanvasser.bind(factory, canvasser, addr)
+      );
+    }
+    
+    return undo;
   }
 
   /**
@@ -588,6 +478,16 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
                                           }, addr);
   }
 
+  /**
+   * Generate a canvasser badge
+   * @param   {object} canvasser Canvasser object
+   * @returns {string} badge
+   */
+  function makeCanvasserBadge (canvasser) {
+    return getFirstLetters(canvasser.person.firstname) +
+            getFirstLetters(canvasser.person.lastname);
+  }
+  
   /**
    * Get the first letters of all words in a string
    * @param {string}   str  String to get leading letter from
@@ -607,22 +507,70 @@ function canvassAssignmentFactory($resource, $injector, $filter, baseURL, storeF
 
   /**
    * Unlink the specified canvasser and address
-   * @param {object}   canvasser  Canvasser object to unlink
-   * @param {object}   addr       Address object to unlink
+   * @param {object}  canvasser Canvasser object to unlink
+   * @param {object}  addr      Address object to unlink
+   * @param {boolean} rtnUndo   Generate undo  object
+   * @return {object}  undo object
    */
-  function unlinkAddrFromCanvasser (canvasser, addr) {
+  function unlinkAddrFromCanvasser (canvasser, addr, rtnUndo) {
+    var undo,
+      idx;
     if (canvasser.addresses) {
-      var idx = findAddrIndex(canvasser, addr);
+      idx = findAddrIndex(canvasser, addr);
       if (idx >= 0) {
-        canvasser.addresses.splice(idx, 1); // remove from list
+        canvasser.addresses.splice(idx, 1);
+        
+        if (rtnUndo) {
+          undo = undoFactory.newUndoStep(
+            factory.linkCanvasserToAddr.bind(factory, canvasser, addr)
+          );
+        }
       }
     }
     delete addr.canvasser;
     delete addr.badge;
+
+    return undo;
   }
 
+  /**
+   * Unlink the specified canvasser and all addresses in a list
+   * @param {object}   canvasser  Canvasser object to unlink
+   * @param {array}   addrArray   List of address objects to unlink
+   * @param {boolean} rtnUndo   Generate undo  object
+   * @return {array} array of undo objects
+   */
+  function unlinkAddrListFromCanvasser (canvasser, addrArray, rtnUndo) {
+    var undo = [];
+    if (canvasser.addresses) {
+      canvasser.addresses.forEach(function (addrId) {
+        var addr = addrArray.find(function (entry) {
+                                    return (entry._id === this);
+                                  }, addrId);
+        if (addr) {
+          delete addr.canvasser;
+          delete addr.badge;
+          
+          if (rtnUndo) {
+            undo.push(undoFactory.newUndoStep(
+              factory.linkCanvasserToAddr.bind(factory, canvasser, addr)
+            ));
+          }
+        }
+      });
+    }
+    canvasser.addresses = [];
 
+    return (undo.length ? undo : undefined);
+  }
 
+  /**
+   * Set the labeling function
+   * @param {function} labelfunc Function to return label class
+   */
+  function setLabeller (labelfunc) {
+    dfltLabeller = labelfunc;
+  }
 
 }
 

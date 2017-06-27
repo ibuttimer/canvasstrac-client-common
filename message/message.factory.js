@@ -8,22 +8,10 @@ angular.module('ct.clientCommon')
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'TYPE', modelName: 'type',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'NAME', modelName: 'name',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'EMAIL', modelName: 'email',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'COMMENT', modelName: 'comment',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
+      schemaProvider.getStringModelPropArgs('type', { field: 'TYPE' }),
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('email', { field: 'EMAIL' }),
+      schemaProvider.getStringModelPropArgs('comment', { field: 'COMMENT' }),
       SCHEMA_CONST.CREATEDAT,
       SCHEMA_CONST.UPDATEDAT
     ],
@@ -67,87 +55,42 @@ angular.module('ct.clientCommon')
       });
   }])
 
-  .filter('filterMessage', ['miscUtilFactory', 'SCHEMA_CONST', function (miscUtilFactory, SCHEMA_CONST) {
-
-    function filterMessageFilter (input, schema, filterBy) {
-      
-      // message specific filter function
-      var out = [];
-
-      if (!miscUtilFactory.isEmpty(filterBy)) {
-        var testCnt = 0;  // num of fields to test as speced by filter
-
-        schema.forEachField(function(idx, fieldProp) {
-          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
-            ++testCnt;
-          }
-        });
-        
-        // TODO message specific filter function
-        out = input;
-
-      } else {
-        out = input;
-      }
-      return out;
-    }
-
-    return filterMessageFilter;
-  }])
-
   .factory('messageFactory', messageFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-messageFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'consoleService', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'SCHEMA_CONST', 'MESSAGESCHEMA'];
+messageFactory.$inject = ['$filter', '$injector', 'baseURL', 'consoleService', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'SCHEMA_CONST', 'MESSAGESCHEMA'];
 
-function messageFactory($resource, $filter, $injector, baseURL, consoleService, storeFactory, resourceFactory, compareFactory, filterFactory, SCHEMA_CONST, MESSAGESCHEMA) {
+function messageFactory($filter, $injector, baseURL, consoleService, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, SCHEMA_CONST, MESSAGESCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'messageFactory',
-      getMessage: getMessage,
-      getFeedback: getFeedback,
-      getSupport: getSupport,
 
       readRspObject: readRspObject,
 
-      setFilter: setFilter,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      forEachSchemaField: forEachMessageSchemaField,
-      getSortOptions: getSortOptions,
       getSortFunction: getSortFunction,
-      getFilteredResource: getFilteredResource
     },
     con = consoleService.getLogger(factory.NAME);
 
   resourceFactory.registerStandardFactory(factory.NAME, {
-    storeId: storeId,
+    storeId: MESSAGESCHEMA.ID_TAG,
     schema: MESSAGESCHEMA.SCHEMA,
-    addInterface: factory // add standard factory functions to this factory
+    sortOptions: MESSAGESCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      message: resourceFactory.getResourceConfigWithId('message'),
+      feedback: resourceFactory.getResourceConfigWithId('message/feedback'),
+      support: resourceFactory.getResourceConfigWithId('message/support')
+    }
   });
   
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getMessage () {
-    return resourceFactory.getResources('message');
-  }
-
-  function getFeedback () {
-    return resourceFactory.getResources('message/feedback');
-  }
-
-  function getSupport () {
-    return resourceFactory.getResources('message/support');
-  }
-
-
 
   /**
    * Read a server response message object
@@ -175,120 +118,6 @@ function messageFactory($resource, $filter, $injector, baseURL, consoleService, 
     return object;
   }
 
-  /**
-   * Create storeFactory id
-   * @param {string}   id   Factory id to generate storeFactory id from
-   */
-  function storeId(id) {
-    return MESSAGESCHEMA.ID_TAG + id;
-  }
-
-  /**
-   * Get messages
-   * @param {object}   resList              ResourceList to save result to
-   * @param {object}   [filter=newFilter()] ResourceFilter to filter raw results
-   * @param {function} success              Function to call on success
-   * @param {function} failure              Function to call on failure
-   * @param {function} forEachSchemaField   Schema field iterator
-   */
-  function getFilteredResource (resList, filter, success, failure, forEachSchemaField) {
-    
-    filter = filter || newFilter();
-
-    if (typeof filter === 'function') {
-      forEachSchemaField = failure;
-      failure = success;
-      filter = newFilter();
-    }
-    if (!forEachSchemaField) {
-      forEachSchemaField = forEachMessageSchemaField;
-    }
-
-    var query = resourceFactory.buildQuery(forEachSchemaField, filter.filterBy);
-
-    resList.setList([]);
-    getMessage().query(query).$promise.then(
-      // success function
-      function (response) {
-        // add indices
-        for (var i = 0; i < response.length; ++i) {
-          response[i].index = i + 1;
-        }
-        // response from server contains result of filter request
-        resList.setList(response, storeFactory.APPLY_FILTER);
-
-        if (success){
-          success(response);
-        }
-      },
-      // error function
-      function (response) {
-        if (failure){
-          failure(response);
-        }
-      }
-    );
-  }
-  
-  /**
-   * Set the filter for a ResourceList
-   * @param {string} id                   ResourceList id
-   * @param {object} [filter=newFilter()] ResourceFilter to set
-   * @param {number} flags                storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  function setFilter (id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions () {
-    return MESSAGESCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachMessageSchemaField (callback) {
-    MESSAGESCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  /**
-   * Generate a new ResourceFilter
-   * @param {object}   base         Base object to generate filter from
-   * @param {function} customFilter Custom filter function
-   * @param {boolean}  allowBlank   Allow blanks flag
-   */
-  function newFilter (base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(MESSAGESCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-  
-  /**
-   * Generate a filtered list
-   * @param {object}   reslist    message ResourceList object to filter
-   * @param {object}   filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array}    filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // message specific filter function
-    return filterFactory.getFilteredList('filterMessage', reslist, filter, xtraFilter);
-  }
-  
-  /**
-   * Message-specific filter function
-   * @param {object} reslist ResourceList object
-   * @param {object} filter  Filter object to use (not ResourceFilter)
-   */
-  function filterFunction (addrList, filter) {
-    // message specific filter function
-    addrList.filterList = getFilteredList(addrList, filter);
-  }
-  
   
   function getSortFunction (options, sortBy) {
     var sortFxn = resourceFactory.getSortFunction(options, sortBy);

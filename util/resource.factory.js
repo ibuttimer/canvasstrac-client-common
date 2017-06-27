@@ -35,9 +35,27 @@ angular.module('ct.clientCommon')
       MODEL_ARGS: model,
       SCHEMA_MODEL_ARGS: schemaModel,
       BASIC_STORE_ARGS: basicStore,
-      STD_ARGS: stdArgs
+      STD_ARGS: stdArgs,
+      
+      QUERY_OR: '$or', // performs a logical OR operation on an array of two or more <expressions> and selects the documents that satisfy at least one of the <expressions>
+      QUERY_AND: '$and', // performs a logical AND operation on an array of two or more expressions (e.g. <expression1>, <expression2>, etc.) and selects the documents that satisfy all the expressions
+      QUERY_NOT: '$not', // performs a logical NOT operation on the specified <operator-expression> and selects the documents that do not match the <operator-expression>
+      QUERY_NOR: '$nor', // performs a logical NOR operation on an array of one or more query expression and selects the documents that fail all the query expressions
+
+      QUERY_OR_JOIN: '|',   // multi field OR
+      QUERY_AND_JOIN: '+',  // multi field AND
+      QUERY_COMMA_JOIN: ',',  // multi field comma join
+
+      QUERY_NE: '!',  // inverse i.e. not equal
+      QUERY_EQ: '=',  // equal
+      QUERY_GT: '>',  // greater than
+      QUERY_LT: '<',  // less than
+      QUERY_GTE: '>=',  // greater than or equal
+      QUERY_LTE: '<=',  // less than or equal
+      QUERY_BLANK: '~', // blank
+      QUERY_NBLANK: '!~' // not blank
     };
-  })())
+  }()))
 
   .factory('resourceFactory', resourceFactory);
 
@@ -45,11 +63,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-resourceFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'miscUtilFactory', 'pagerFactory', 'compareFactory',
-  'consoleService', 'SCHEMA_CONST', 'RESOURCE_CONST'];
+resourceFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'storeFactory', 'miscUtilFactory', 'pagerFactory', 'compareFactory', 'standardFactoryFactory', 'resourceListFactory', 'queryFactory', 'consoleService', 'SCHEMA_CONST', 'RESOURCE_CONST'];
 
-function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, miscUtilFactory, pagerFactory, compareFactory,
-  consoleService, SCHEMA_CONST, RESOURCE_CONST) {
+function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, miscUtilFactory, pagerFactory, compareFactory, standardFactoryFactory, resourceListFactory, queryFactory, consoleService, SCHEMA_CONST, RESOURCE_CONST) {
 
   // jic no native implementation is available
   miscUtilFactory.arrayPolyfill();
@@ -57,8 +73,6 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
     NAME: 'resourceFactory',
-    getResources: getResources,
-    getCount: getCount,
     createResources: createResources,
     getStoreResource: getStoreResource,
     storeServerRsp: storeServerRsp,
@@ -76,27 +90,15 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     removeBasicStorageArgs: removeBasicStorageArgs,
     getServerRsp: getServerRsp,
     
-    registerStandardFactory: registerStandardFactory,
-    
-    newResourceList: newResourceList,
-    duplicateList: duplicateList,
-    delResourceList: delResourceList,
-    setResourceList: setResourceList,
-    getResourceList: getResourceList,
-    initResourceList: initResourceList,
-
-    setFilter: setFilter,
-    setPager: setPager,
-    applyFilter: applyFilter,
-
-    getSortFunction: getSortFunction,
-    sortResourceList: sortResourceList,
-    isDescendingSortOrder: isDescendingSortOrder,
-    buildQuery: buildQuery
+    extendFactory: extendFactory
   },
-  standardFactories = {},
   modelArgsMap = {};
-
+  
+  // add additional methods to factory
+  extendFactory(factory, standardFactoryFactory);
+  extendFactory(factory, resourceListFactory);
+  extendFactory(factory, queryFactory);
+  
   RESOURCE_CONST.MODEL_ARGS.forEach(function (prop) {
     switch (prop) {
       case 'path':
@@ -114,78 +116,54 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     }
   });
 
+  // need the return here so that object prototype functions are added
+  return factory;
 
   // need to return factory as end so that object prototype functions are added
-//  return factory;
 
   /* function implementation
     -------------------------- */
 
   /**
-   * Get basic REST resource 
-   * @param   {string} url url relative to baseUrl
-   * @returns {object} REST resource
+   * Extend a factory with poprerties from another factory
+   * @param   {object} dst     Factory to extend
+   * @param   {object} src     Factory to get poprerties from
+   * @param   {Array}  addlist List of properties to add to dst
+   * @param   {Array}  exlist  List of properties to not add to dst
+   * @returns {object} Destination factory
    */
-  function getResources (url) {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-
-      add custom update method
-    */
-    return $resource(baseURL + url + '/:id', {id:'@id'}, {'update': {method: 'PUT'}});
-  }
-
-  /**
-   * Get basic count resource
-   * @param   {string} url url relative to baseUrl
-   * @returns {object} REST resource
-   */
-  function getCount (url) {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-    */
-    return $resource(baseURL + url + '/count', null, null);
-  }
-
-  /**
-   * Registger a standard factory
-   * @param   {string}   name         Name of the new factory
-   * @param   {object}   args         Optional srguments:
-   * @param   {function} storeId      Function to generate store ids for objects created by the factory
-   * @param   {object}   schema       Schema associated with the factory
-   * @param   {object}   addInterface Object ro add standard factory interface to
-   * @returns {object}   new factory 
-   */
-  function registerStandardFactory (name, args) {
-    var factory = standardFactories[name];
-    if (!factory) {
-      factory = $injector.instantiate(StandardFactory, {
-        name: name,
-        storeId: args.storeId,
-        schema: args.schema
-      });
-      standardFactories[name] = factory;
-
-      if (args.addInterface) {
-        for (var prop in Object.getPrototypeOf(factory)) {
-          args.addInterface[prop] = factory[prop].bind(factory);
-        }
-      }
+  function extendFactory (dst, src, addlist, exlist) {
+    
+    if (addlist) {
+      addlist = addlist.slice();
+    } else {
+      addlist = Object.getOwnPropertyNames(src);
     }
-    return factory;
+    if (exlist) {
+      exlist = exlist.slice();
+    } else {
+      exlist = [];
+    }
+    exlist.push('NAME');  // never copy name
+    
+    // remove excluded entries from add list
+    exlist.forEach(function (prop) {
+      var idx = addlist.findIndex(function (element) {
+        return (element === prop);
+      });
+      if (idx >= 0) {
+        addlist.splice(idx, 1);
+      }
+    });
+    // copy add list entries
+    addlist.forEach(function (prop) {
+      if (src.hasOwnProperty(prop)) {
+        dst[prop] = src[prop];
+      }
+    });
+    return dst;
   }
-
-
+  
   /**
    * Create resources
    * @param   {object} options   Options specifying ids & types
@@ -212,7 +190,8 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
           if (!srcId) {
             result = args.factory.newList(id, {
               title: id,
-              flags: storeFactory.CREATE_INIT
+              flags: storeFactory.CREATE_INIT,
+              resource: args.resource
             });
           } else {
             result = args.factory.duplicateList(id, srcId, storeFactory.OVERWRITE);
@@ -728,868 +707,4 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     return resp;
   }
 
-  /**
-   * Create a new ResourceList object
-   * @param {string} storeId Id string to use in storeFactory
-   * @param {object} args    Argument object with the following properties:
-   *   {string} id                          Id of list
-   *   {string} title                       Title of list
-   *   {Array}  list                        base list to use
-   *   {number} [flags=storeFactory.NOFLAG] storeFactory flags
-   *   {string} factory                     name of factory
-   * @returns {object} ResourceList object
-   */
-  function newResourceList (storeId, args) {
-    // jic no native implementation is available
-    miscUtilFactory.arrayPolyfill();
-    
-    var listArgs,
-      resourceList,
-      newList;
-
-    if (args) {
-      listArgs = angular.copy(args);
-    } else {
-      listArgs = {};
-    }
-    if (!listArgs.id) {
-      listArgs.id = '';
-    }
-    if (!listArgs.title) {
-      listArgs.title = '';
-    }
-    if (!listArgs.list) {
-      listArgs.list = [];
-    }
-    if (!listArgs.flags) {
-      listArgs.flags = storeFactory.NOFLAG;
-    }
-
-    resourceList = $injector.instantiate(ResourceList, listArgs);
-    newList = storeFactory.newObj(storeId, resourceList, listArgs.flags);
-
-    if (typeof listArgs.factory === 'string') {
-      newList.factory = $injector.get(listArgs.factory);
-    }
-
-    newList.sortOptions = newList.factory.getSortOptions();
-    newList.sortBy = newList.sortOptions[0];
-
-    return newList;
-  }
-  
-  /**
-   * Create a new ResourceList object by duplicating an existing object
-   * @param {string} id         Id string fir new ResourceList
-   * @param {string} storeId    Id string to use in storeFactory
-   * @param {string} srcStoreId storeFactory Id string of object to duplicate
-   * @param {number} flags      storefactory flags
-   * @param {object} args       Optional arguemnts specifying fields to duplicate when used with EXISTING
-   *                            title: true - duplicate title
-   *                            list: true - duplicate list and apply filter
-   *                            filter: true - duplicate filter
-   *                            pager: true - duplicate pager
-   *                            sort: true - duplicate sortby
-   *                            onchange: true - duplicate onchange
-   */
-  function duplicateList (id, storeId, srcStoreId, flags, args) {
-    if (typeof flags === 'object') {
-      args = flags;
-      flags = storeFactory.NOFLAG;
-    }
-    var presetCb,
-      list;
-    if (args) {
-      presetCb = function (destination, source) {
-        return duplicateListFields (args, destination, source);
-      };
-    }
-    list = storeFactory.duplicateObj(storeId, srcStoreId, flags, presetCb);
-    list.id = id;
-    return list;
-  }
-
-  /**
-   * Duplicate specific ResourceList fields
-   * @param {object} args        Object specifying fields to duplicate
-   * @param {object} destination ResourceList to update
-   * @param {object} source      ResourceList to duplicate from
-   */
-  function duplicateListFields (args, destination, source) {
-    if (source && destination) { // need something to duplicate
-      ['title', 'filter', 'pager', 'onchange'].forEach(function (prop) {
-        if (args[prop]) {
-          destination[prop] = angular.copy(source[prop]);
-        }
-      });
-      if (args.sort) {
-        destination.sortOptions = angular.copy(source.sortOptions);
-        destination.sortBy = angular.copy(source.sortBy);
-      }
-      if (args.list) {
-        destination.setList(source.list, 
-                      (storeFactory.COPY_SET | storeFactory.APPLY_FILTER));
-        destination.selCount = source.selCount;
-      }
-    }
-  }
-
-  /**
-   * Delete a ResourceList object
-   * @param {string}   storeId Id string to use in storeFactory
-   * @param {number}   flags storeFactory flags; the following are used
-   *                         - COPY_GET: to return copy of list
-   *                         - other flags ignored
-   * @returns {object|boolean} Copy of deleted ResourceList object, or true if successful
-   */
-  function delResourceList (storeId, flags) {
-    return storeFactory.delObj(storeId, flags);
-  }
-  
-  /**
-   * Set the base list for a ResourceList object
-   * @param {string}   storeId Id string to use in storeFactory
-   * @param {Array}    list    base list to use
-   * @param {number}   flags   storefactoryFlags
-   * @param {function} newList Optional list creator function
-   * @returns {object} ResourceList object
-   */
-  function setResourceList (storeId, list, flags, newList) {
-    var resourceList = getResourceList(storeId, flags, newList);
-    if (resourceList) {
-      resourceList.setList(list, flags);
-    }
-    return getResourceList(storeId, flags);
-  }
-
-  /**
-   * Get an existing ResourceList object
-   * @param {string}   storeId Id string to use in storeFactory
-   * @param {number}   flags   storefactoryFlags
-   * @param {function} newList Optional list creator function
-   * @returns {object} ResourceList object
-   */
-  function getResourceList (storeId, flags, newList) {
-    var resourceList = storeFactory.getObj(storeId, flags);
-    if (!resourceList && storeFactory.doCreateAny(flags)) {
-      resourceList = newList(flags);
-    }
-    return resourceList;
-  }
-
-  /**
-   * Initialise a ResourceList object to an emply base list
-   * @param {string}   storeId Id string to use in storeFactory
-   * @param   {number}   flags   storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  function initResourceList (storeId, flags) {
-    return setResourceList(storeId, [], flags);
-  }
-
-  /**
-   * Set the filter for a ResourceList object
-   * @param {string} storeId    Id string to use in storeFactory
-   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
-   * @param   {number} flags      storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  function setFilter (storeId, filter, flags) {
-    if (typeof filter === 'number') {
-      flags = filter;
-      filter = {};
-    }
-    filter = filter || {};
-
-    var resourceList = getResourceList(storeId);
-    if (resourceList) {
-      resourceList.filter = filter;
-      if (storeFactory.doApplyFilter(flags)) {
-        resourceList.applyFilter(filter);
-      }
-    }
-    return getResourceList(storeId, flags);
-  }
-
-  /**
-   * Set the pager for the ResourceList object
-   * @param {string} storeId Id string to use in storeFactory
-   * @param   {object} pager   pagerFactory object
-   * @param   {number} flags   storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  function setPager (storeId, pager, flags) {
-    if (typeof pager === 'number') {
-      flags = pager;
-      pager = undefined;
-    }
-
-    var resourceList = getResourceList(storeId);
-    if (resourceList) {
-      resourceList.pager = pager;
-    }
-    return getResourceList(storeId, flags);
-  }
-
-  /**
-   * Apply a filter to a ResourceList object, and update the associated pager if applicable
-   * @see ResourceList.applyFilter()
-   * @param {string} storeId Id string to use in storeFactory
-   * @param   {object} filter filter to use or preset filter is used if undefined
-   * @param   {number} flags   storefactoryFlags
-   * @returns {object} this object to facilitate chaining
-   */
-  function applyFilter (storeId, filter, flags) {
-    var resourceList = getResourceList(storeId);
-    if (resourceList) {
-      resourceList.applyFilter(filter);
-    }
-    return getResourceList(storeId, flags);
-  }
-
-  /**
-   * Get the sort function
-   * @param   {object} sortOptions  List of possible sort option
-   * @param   {object} sortBy       Key to sort by
-   * @returns {function|object} sort function or sort option
-   */
-  function getSortFunction (sortOptions, sortBy) {
-    var sortFxn;
-    for (var i = 0; (i < sortOptions.length) && !sortFxn; ++i) {
-      var option = sortOptions[i].value;
-      if (option === sortBy) {
-        for (var j = 0; j < SCHEMA_CONST.BASIC_SORT_OPTIONS.length; ++j) {
-          if (option === SCHEMA_CONST.BASIC_SORT_OPTIONS[j].value) {
-            sortFxn = compareFactory.compareIndices;
-            break;
-          }
-        }
-        if (!sortFxn) {
-          sortFxn = sortOptions[i];  // return sort option
-        }
-      }
-    }
-    return sortFxn;
-  }
-
-  /**
-   * Sort a ResourceList
-   * @param   {object}   resList         List to sort
-   * @param   {function} getSortFunction Function to return  sort function
-   * @param   {object}   sortOptions     List of possible sort option
-   * @param   {object}   sortByValue     Key to sort by
-   * @returns {Array}    sorted list
-   */
-  function sortResourceList (resList, getSortFunction, sortOptions, sortByValue) {
-    var sortList,
-      sortFxn;
-    
-    if (resList && resList.factory) {
-      if (!getSortFunction) {
-        getSortFunction = resList.factory.getSortFunction;
-      }
-      if (!sortOptions) {
-        sortOptions = resList.sortOptions;
-      }
-      if (!sortByValue) {
-        if (resList.sortBy) {
-          sortByValue = resList.sortBy.value;
-        }
-      }
-
-      if (getSortFunction && sortOptions && sortByValue) {
-        sortList = resList.list;
-
-        sortFxn = getSortFunction(sortOptions, sortByValue);
-        if (sortFxn) {
-          sortList.sort(sortFxn);
-          if (isDescendingSortOrder(sortByValue)) {
-            sortList.reverse();
-          }
-          
-          if (resList.filter.lastFilter) {
-            // reapply last filter
-            resList.applyFilter(resList.filter.lastFilter);
-          } else if (resList.pager) {
-            // update pager
-            pagerFactory.updatePager(resList.pager.id, sortList);
-          }
-        }
-      }
-    }
-    return sortList;
-  }
-
-  
-  /**
-   * Check if sort key is descending order
-   * @param   {object} sortBy   Key to sort by
-   * @returns {boolean} true if is descending order, false otherwise
-   */
-  function isDescendingSortOrder (sortBy) {
-    return (sortBy.charAt(0) === SCHEMA_CONST.SORT_DESC);
-  }
-
-  /**
-   * Generate a query object
-   * @param {function}  forEachSchemaField  Schema field callback function 
-   * @param {object}    filter              object to filter by
-   * @returns {object} query object
-   */
-  function buildQuery(forEachSchemaField, filter) {
-    var query = {};
-    if (filter) {
-      // using the dialog fields to build an object based on the model fields
-      forEachSchemaField(function (idx, fieldProp) {
-        var filterVal = filter[fieldProp[SCHEMA_CONST.DIALOG_PROP]];
-        if (filterVal) {
-          var field = '',
-            models = fieldProp[SCHEMA_CONST.MODEL_PROP];
-          for (var i = 0; i < models.length; ++i) {
-            if (i > 0) {
-              field += ' ';
-            }
-            field += models[i];
-          }
-          query[field] = filterVal;
-        }
-      });
-    }
-    return query;
-  }
-
-
-
-  /**
-   * StandardFactory object
-   * @throws {TypeError} on incorrect argument type
-   * @param {string}   name    Name of factory
-   * @param {function} storeId Function to make store ids for objects created by the factory
-   * @param {object}   schema  Schema associated with this factory
-   */
-  function StandardFactory (storeFactory, name, storeId, schema) {
-    this.name = name;
-    this.storeId = storeId;
-    if (typeof storeId !== 'function') {
-      throw new TypeError('Incorrect argument type: storeId');
-    }
-    this.schema = schema;
-  }
-  
-  StandardFactory.$inject = ['storeFactory', 'name', 'storeId', 'schema'];
-  
-  /**
-   * Get the factory schema
-   * @param {object} factory schema
-   */
-  StandardFactory.prototype.getSchema = function () {
-    return this.schema;
-  };
-
-  /**
-   * Create a new object
-   * @param {string} id     Factory id of new object
-   * @param {number} flags  storefactory flags
-   */
-  StandardFactory.prototype.newObj = function (id, flags) {
-    return storeFactory.newObj(this.storeId(id), this.schema.getObject(), flags);
-  };
-
-  /**
-   * Create a new object by duplicating an existing object
-   * @param {string} id     Factory id of new object
-   * @param {string} srcId  Factory id of object to duplicate
-   * @param {number} flags  storefactory flags
-   * @param   {function} presetCb Optional function to be called before object stored
-   * @returns {object}   New or existing object
-   */
-  StandardFactory.prototype.duplicateObj = function (id, srcId, flags, presetCb) {
-    return storeFactory.duplicateObj(this.storeId(id), this.storeId(srcId), flags, presetCb);
-  };
-  
-  /**
-   * Delete an object
-   * @param {string} id     Factory id of object to delete
-   * @param {number} flags  storefactory flags
-   */
-  StandardFactory.prototype.delObj = function (id, flags) {
-    return storeFactory.delObj(this.storeId(id), flags);
-  };
-
-  /**
-   * Set an object
-   * @param {string} id     Factory id of object to set
-   * @param {object} data   data to set
-   * @param {number} flags  storefactory flags
-   */
-  StandardFactory.prototype.setObj = function (id, data, flags) {
-    return storeFactory.setObj(this.storeId(id), data, flags, this.schema.getObject());
-  };
-  
-  /**
-   * Get an object
-   * @param {string} id     Factory id of object to get
-   * @param {number} flags  storefactory flags
-   */
-  StandardFactory.prototype.getObj = function (id, flags) {
-    return storeFactory.getObj(this.storeId(id), flags);
-  };
-  
-  /**
-   * Initialise an object
-   * @param {string} id     Factory id of object to init
-   * @param {number} flags  storefactory flags
-   */
-  StandardFactory.prototype.initObj = function (id, flags) {
-    return this.setObj(id, this.schema.getObject(), flags);
-  };
-
-  /**
-   * Create a new ResourceList object
-   * @param   {string} id   Id of list
-   * @param {object} args Argument object with the following properties:
-   *   {string} id                          Id of list
-   *   {string} title                       Title of list
-   *   {Array}  list                        base list to use
-   *   {number} [flags=storeFactory.NOFLAG] storeFactory flags
-   * @returns {object} address ResourceList object
-   */
-  StandardFactory.prototype.newList = function (id, args) {
-    var listArgs;
-    if (args) {
-      listArgs = angular.copy(args);
-    } else {
-      listArgs = {};
-    }
-    if (!listArgs.id) {
-      listArgs.id = id;
-    }
-    listArgs.factory = this.name;
-
-    return newResourceList(this.storeId(id), listArgs);
-  };
-  
-  /**
-   * Create a new ResourceList object by duplicating an existing object
-   * @param {string} id    Factory id of new object
-   * @param {string} srcId Factory id of object to duplicate
-   * @param {number} flags storefactory flags
-   * @param {object} args  Optional arguemnts specifying fields to duplicate when used with EXISTING
-   * @see resourceFactory.duplicateList()
-   * @returns {object} ResourceList object
-   */
-  StandardFactory.prototype.duplicateList = function (id, srcId, flags, args) {
-    return duplicateList(id, this.storeId(id), this.storeId(srcId), flags, args);
-  };
-
-  
-  /**
-   * Delete a ResourceList object
-   * @param {string}         id    Id string to use
-   * @param {number}         flags storeFactory flags; the following are used
-   *                               - COPY_GET: to return copy of list
-   *                               - other flags ignored
-   * @returns {object|boolean} Copy of deleted ResourceList object, or true if successful
-   */
-  StandardFactory.prototype.delList = function (id, flags) {
-    return delResourceList(this.storeId(id), flags);
-  };
-  
-  /**
-   * Set the base list for a ResourceList object
-   * @param {string} id    Id string to use
-   * @param {Array}  list  base list to use
-   * @param {number} flags storefactoryFlags
-   * @param {string} title Title of list if new list must be created
-   * @returns {object} ResourceList object
-   */
-  StandardFactory.prototype.setList = function (id, list, flags, title) {
-    var newListFxn = this.newList.bind(this, id);
-    return setResourceList(this.storeId(id), list, flags,
-            function (flags) {
-              return newListFxn({
-                id: id, title: title, list: list, flags: flags }
-              );
-            });
-  };
-  
-  /**
-   * Get an existing ResourceList object
-   * @param {string} id   Id string to use
-   * @param   {number}   flags   storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  StandardFactory.prototype.getList = function (id, flags) {
-    var newListFxn = this.newList.bind(this, id);
-    return getResourceList(this.storeId(id), flags,
-            function (flags) {
-              return newListFxn({
-                id: id, flags: flags
-              });
-            });
-  };
-  
-  /**
-   * Initialise a ResourceList object to an emply base list
-   * @param {string} id   Id string to use
-   * @param {number}   flags   storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  StandardFactory.prototype.initList = function (id, flags) {
-    return initResourceList(this.storeId(id), flags);
-  };
-
-  /**
-   * Check if sort key is descending order
-   * @param   {object} sortBy   Key to sort by
-   * @returns {boolean} true if is descending order, false otherwise
-   */
-  StandardFactory.prototype.isDescendingSortOrder = function (sortBy) {
-    return isDescendingSortOrder(sortBy);
-  };
-
-  /**
-   * Set the pager for a ResourceList object
-   * @param {string} id     Factory id of object
-   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass result ResourceList object
-   */
-  StandardFactory.prototype.setPager = function (id, pager, flags) {
-    return setPager(this.storeId(id), pager, flags);
-  };
-
-  /**
-   * Apply filter to a ResourceList object
-   * @param {string} id     Factory id of object
-   * @param {object} filter filter to use or preset filter is used if undefined
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass result ResourceList object
-   */
-  StandardFactory.prototype.applyFilter = function (id, filter, flags) {
-    return applyFilter(this.storeId(id), filter, flags);
-  };
-
-
-  /**
-   * Set the base list
-   * @param {Array}  list  base list to use
-   * @param {number} flags storeFactory flags; the following are used
-   *                       - COPY_SET: to set list to a copy of the argument
-   *                       - APPLY_FILTER: to immediately filter list
-   *                       - other flags ignored
-   * @returns {object} ResourceList object
-   */
-  function setListForResourceList (resList, list, flags) {
-    var toSet = list;
-    if (toSet) {
-      toSet = miscUtilFactory.toArray(list);
-      if (storeFactory.doCopySet(flags)) {
-        toSet = angular.copy(toSet);
-      }
-    }
-    resList.list = toSet;       // unfiltered list
-    resList.filterList = toSet; // filtered list
-    if (toSet) {
-      resList.count = toSet.length;       // total number of possibilities
-      resList.filterCount = toSet.length; // total after filter
-    } else {
-      resList.count = 0;
-      resList.filterCount = 0;
-    }
-    if (storeFactory.doApplyFilter(flags)) {
-      resList.applyFilter();
-    }
-    resList.exeChanged();
-
-    return resList;
-  }
-
-  /**
-   * A resource list object containing base and filtered lists
-   * @param {function} $filter         Angular filter service
-   * @param {function} storeFactory    storeFactory service
-   * @param {object}   miscUtilFactory miscUtilFactory service
-   * @param {object}   pagerFactory    pagerFactory
-   * @param {string}   id              id string
-   * @param {string}   title           title string
-   * @param {Array}    list            base list to use
-   * @param {number}   flags           storeFactory flags
-   */
-  function ResourceList ($filter, storeFactory, resourceFactory, miscUtilFactory, pagerFactory, id, title, list, flags) {
-    if (!list) {
-      list = [];
-    }
-
-    // configure object
-    this.id = id;
-    this.title = title;
-    setListForResourceList(this, list, flags);
-    this.filter = {};         // filter
-    this.pager = undefined;   // pager
-    this.selCount = 0;        // selected count
-    this.sortOptions = undefined;  // list of sort valid options
-    this.sortBy = undefined;  // sort by option
-    this.onChange = [];       // functions to be executed when contents are changed
-  }
-
-  ResourceList.$inject = ['$filter', 'storeFactory', 'resourceFactory', 'miscUtilFactory', 'pagerFactory', 'id', 'title', 'list', 'flags'];
-
-  /**
-   * Identify this object as a REsourceList
-   */
-  ResourceList.prototype.isResourceList = true;
-
-  /**
-   * Set the base list
-   * @param {Array}  list  base list to use
-   * @param {number} flags storeFactory flags; the following are used
-   *                       - COPY_SET: to set list to a copy of the argument
-   *                       - APPLY_FILTER: to immediately filter list
-   *                       - other flags ignored
-   * @returns {object} ResourceList object
-   */
-  ResourceList.prototype.setList = function (list, flags) {
-    return setListForResourceList(this, list, flags);
-  };
-
-  /**
-   * Add an entry to the base list
-   * @param {object} entry Entry to add to list
-   * @param {number} flags storeFactory flags; the following are used
-   *                       - COPY_SET: to add a copy of the entry argument to the list
-   *                       - APPLY_FILTER: to immediately filter list
-   *                       - other flags ignored
-   */
-  ResourceList.prototype.addToList = function (entry, flags) {
-    if (!this.list) {
-      this.setList([entry], flags);
-    } else {
-      if (storeFactory.doCopySet(flags)) {
-        entry = angular.copy(entry);
-      }
-
-      this.list.push(entry);
-      ++this.count;
-
-      if (storeFactory.doApplyFilter(flags)) {
-        this.applyFilter();
-      }
-    }
-    this.exeChanged();
-  };
-
-  /**
-   * Notify all listeners of a change
-   */
-  ResourceList.prototype.exeChanged = function () {
-    if (this.onChange) {
-      for (var i = 0; i < this.onChange.length; ++i) {
-        this.onChange[i](this);
-      }
-    }
-  };
-
-  /**
-   * Add an onChange listener
-   * @param {function} listener   listener function to callback
-   */
-  ResourceList.prototype.addOnChange = function (listener) {
-    this.onChange.push(listener);
-  };
-
-  /**
-   * Call the callback function for each of the entries in this objects list
-   * @param {function} callback   function to callback
-   */
-  ResourceList.prototype.forEachInList = function (callback) {
-    this.list.forEach(function (entry) {
-      callback(entry);
-    });
-  };
-
-  /**
-   * Find an entry in this objects list using the callback function to test each of the entries 
-   * @param {function} predicate function to test entries in list
-   * @param {number}   start     offset to start from
-   * @return {object}   Found entry or undefined
-   */
-  ResourceList.prototype.findInList = function (predicate, start) {
-    if (typeof predicate !== 'function') {
-      throw new TypeError('predicate must be a function');
-    }
-    // If argument start was passed let n be ToInteger(start); else let n be 0.
-    var n = +start || 0;
-    if (Math.abs(n) === Infinity) {
-      n = 0;
-    }
-
-    var length = this.list.length >>> 0,
-      value;
-
-    for (var i = n; i < length; i++) {
-      value = this.list[i];
-      if (predicate(value, i, this.list)) {
-        return value;
-      }
-    }
-    return undefined;
-  };
-
-  /**
-   * Find the index of an entry in this objects list using the callback function to test each of the entries 
-   * @param {function} predicate function to test entries in list
-   * @param {number}   start     offset to start from
-   * @return {number}   Index of found entry or undefined
-   */
-  ResourceList.prototype.findIndexInList = function (predicate, start) {
-    if (typeof predicate !== 'function') {
-      throw new TypeError('predicate must be a function');
-    }
-    // If argument start was passed let n be ToInteger(start); else let n be 0.
-    var n = +start || 0;
-    if (Math.abs(n) === Infinity) {
-      n = 0;
-    }
-
-    var length = this.list.length >>> 0,
-      value;
-
-    for (var i = n; i < length; i++) {
-      value = this.list[i];
-      if (predicate(value, i, this.list)) {
-        return i;
-      }
-    }
-    return undefined;
-  };
-
-  /**
-   * Return an entry in this objects list
-   * @param {number}   index     index of entry to return
-   */
-  ResourceList.prototype.getFromList = function (index) {
-    var length = this.list.length >>> 0;
-
-    if ((index < 0) || (index >= length)) {
-      throw new RangeError('index out of range');
-    }
-    return this.list[index];
-  };
-
-  /**
-   * Set an entry in this objects list
-   * @param {number}   index     index of entry to return
-   * @param {object}   value     value of entry to set
-   */
-  ResourceList.prototype.setInList = function (index, value) {
-    var length = this.list.length >>> 0;
-
-    if ((index < 0) || (index >= length)) {
-      throw new RangeError('index out of range');
-    }
-    return (this.list[index] = value);
-  };
-
-  /**
-   * Update an entry in this objects list with the properties of value
-   * @param {number}   index     index of entry to return
-   * @param {object}   value     value of entry to set
-   */
-  ResourceList.prototype.updateInList = function (index, value) {
-    var length = this.list.length >>> 0;
-
-    if ((index < 0) || (index >= length)) {
-      throw new RangeError('index out of range');
-    }
-    miscUtilFactory.copyProperties(value, this.list[index]);
-    return this.list[index];
-  };
-
-  /**
-   * Apply a filter to the list, and update the associated pager if applicable
-   * @param   {object} filter Filter object (not ResourceFilter) to use or preset filter used if undefined
-   * @returns {object} this object to facilitate chaining
-   */
-  ResourceList.prototype.applyFilter = function (filter) {
-    if (typeof filter === 'undefined') {
-      // use preset filter object
-      if (this.filter) {
-        filter = this.filter.filterBy;
-      }
-    }
-
-    filter = filter || {};
-    
-    this.filter.lastFilter = filter;
-
-    if (!miscUtilFactory.isEmpty(filter) || !this.filter.allowBlank) {
-      if (this.filter.customFunction) {
-        // use the specific filter function to set the filtered list
-        this.filter.customFunction(this, filter);
-      } else {
-        // use the filter object
-        this.filterList = $filter('filter')(this.list, filter);
-      }
-    } else {
-      this.filterList = this.list;
-    }
-    this.filterCount = this.filterList.length;
-
-    if (this.pager) {
-      pagerFactory.updatePager(this.pager.id, this.filterList);
-    }
-
-    return this;
-  };
-
-  /**
-   * Sort this ResourceList
-   * @param   {function} getSortFunction Function to return  sort function
-   * @param   {object}   sortOptions     List of possible sort option
-   * @param   {object}   sortByValue     Key to sort by
-   * @returns {Array}    sorted list
-   */
-  ResourceList.prototype.sort = function (getSortFunction, sortOptions, sortByValue) {
-    return sortResourceList(this, getSortFunction, sortOptions, sortByValue);
-  };
-
-  /**
-   * toString method for a ResourceList object
-   * @returns {string} string representation
-   */
-  ResourceList.prototype.toString = function () {
-    return 'ResourceList{ id: ' + this.id +
-    ', title: ' + this.title +
-    ', list: ' + this.propertyToString(this.list) +
-    ', count: ' + this.count +
-    ', filterList: ' + this.propertyToString(this.filterList) +
-    ', filterCount: ' + this.filterCount +
-    ', filter: ' + this.propertyToString(this.filter) +
-    ', pager: ' + this.pager +
-    ', selCount: ' + this.selCount +
-    ', sortOptions: ' + this.propertyToString(this.sortOptions) +
-    ', sortBy: ' + this.sortBy + '}';
-  };
-
-  /**
-   * Wrapper for toString to prevent toString calls on undefined
-   * @param {object} property object to call to String on
-   * @returns {string} string representation
-   */
-  ResourceList.prototype.propertyToString = function (property) {
-    var str;
-    if (property) {
-      str = property.toString();
-    } else {
-      str = property;
-    }
-    return str;
-  };
-
-  // need the return here so that object prototype functions are added
-  return factory;
 }
-
-
-

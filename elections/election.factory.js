@@ -4,34 +4,16 @@
 
 angular.module('ct.clientCommon')
 
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'VOTINGSYSSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, VOTINGSYSSCHEMA) {
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'NAME', modelName: 'name',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'DESCRIPTION', modelName: 'description',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'SEATS', modelName: 'seats',
-        dfltValue: 0, type: SCHEMA_CONST.FIELD_TYPES.NUMBER
-      },
-      {
-        field: 'ELECTIONDATE', modelName: 'electionDate',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE
-      },
-      {
-        field: 'SYSTEM', modelName: 'system', factory: 'votingsystemFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'CANDIDATES', modelName: 'candidates',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
-      }
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
+      schemaProvider.getNumberModelPropArgs('seats', 0, { field: 'SEATS' }),
+      schemaProvider.getDateModelPropArgs('electionDate', undefined, { field: 'ELECTIONDATE' }),
+      schemaProvider.getObjectIdModelPropArgs('system', 'votingsystemFactory', 'system', VOTINGSYSSCHEMA, VOTINGSYSSCHEMA.IDs.ID, { field: 'SYSTEM' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('candidates', undefined, undefined, undefined, undefined, { field: 'CANDIDATES' })
     ],
       ids = {},
       modelProps = [];
@@ -85,43 +67,37 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-electionFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'filterFactory', 'consoleService',
+electionFactory.$inject = ['$injector', '$filter', 'storeFactory', 'resourceFactory', 'filterFactory', 'consoleService',
   'miscUtilFactory', 'SCHEMA_CONST', 'ELECTIONSCHEMA'];
 
-function electionFactory($resource, $injector, $filter, storeFactory, resourceFactory, filterFactory, consoleService, 
+function electionFactory($injector, $filter, storeFactory, resourceFactory, filterFactory, consoleService, 
   miscUtilFactory, SCHEMA_CONST, ELECTIONSCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'electionFactory',
-      getElections: getElections,
       readRspObject: readRspObject,
       readResponse: readResponse,
       storeRspObject: storeRspObject,
-      setFilter:setFilter,
-      getSortOptions: getSortOptions,
-      forEachSchemaField: forEachElectionSchemaField,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      filterFunction: filterFunction,
+
       getSortFunction: getSortFunction
     },
     con = consoleService.getLogger(factory.NAME);
 
   resourceFactory.registerStandardFactory(factory.NAME, {
-    storeId: storeId,
+    storeId: ELECTIONSCHEMA.ID_TAG,
     schema: ELECTIONSCHEMA.SCHEMA,
-    addInterface: factory // add standard factory functions to this factory
+    sortOptions: ELECTIONSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      election: resourceFactory.getResourceConfigWithId('elections'),
+    }
   });
   
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getElections () {
-    return resourceFactory.getResources('elections');
-  }
 
   /**
    * Read a server response election object
@@ -194,73 +170,6 @@ function electionFactory($resource, $injector, $filter, storeFactory, resourceFa
       factory: $injector.get(factory.NAME)
     });
     return resourceFactory.storeServerRsp(obj, storeArgs);
-  }
-
-  /**
-   * Create storeFactory id
-   * @param {string}   id   Factory id to generate storeFactory id from
-   */
-  function storeId (id) {
-    return ELECTIONSCHEMA.ID_TAG + id;
-  }
-
-  /**
-   * Set the filter for a ResourceList
-   * @param {string} id                   ResourceList id
-   * @param {object} [filter=newFilter()] ResourceFilter to set
-   * @param {number} flags                storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  function setFilter(id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions() {
-    return ELECTIONSCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachElectionSchemaField(callback) {
-    ELECTIONSCHEMA.SCHEMA.forEachField(callback);
-  }
-
-  /**
-   * Generate a new ResourceFilter
-   * @param {object}   base         Base object to generate filter from
-   * @param {function} customFilter Custom filter function
-   * @param {boolean}  allowBlank   Allow blanks flag
-   */
-  function newFilter(base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(ELECTIONSCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-
-  /**
-   * Generate a filtered list
-   * @param {object} reslist    Election ResourceList object to filter
-   * @param {object} filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array} filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // election specific filter function
-    return filterFactory.getFilteredList('filterElection', reslist, filter, xtraFilter);
-  }
-
-  /**
-   * Election-specific filter function
-   * @param {object} reslist ResourceList object
-   * @param {object} filter  Filter object to use (not ResourceFilter)
-   */
-  function filterFunction(electionList, filter) {
-    // election specific filter function
-    electionList.filterList = getFilteredList(electionList, filter);
   }
 
   function getSortFunction(options, sortBy) {

@@ -64,8 +64,19 @@ angular.module('ct.clientCommon')
       DISPLAY_PROP: 'display',  // property for display string
       MODEL_PROP: 'model',      // property for field(s) used in db model
       TYPE_PROP: 'type',        // property for type of field
+      TRANSFORM_PROP: 'filterTransform',  // property for value transform
+      TEST_PROP: 'filterTest',  // property for value filter test
+      REF_SCHEMA_PROP: 'refSchema',  // schema for ObjectId reference object
+      REF_FIELD_PROP: 'refField',  // link field id for ObjectId reference object
+
       PATH_PROP: 'path',        // property for path to field
       ID_PROP: 'id',            // property for id used to identify schema
+
+      // ModelProp field properties
+      MODELNAME_PROP: 'modelName',
+      MODELPATH_PROP: 'modelPath',
+      FACTORY_PROP: 'factory',
+      DEFAULT_PROP: 'dfltValue',
       
       FIELD_TYPES: {
         UNKNOWN: typeUnknown,
@@ -124,7 +135,10 @@ angular.module('ct.clientCommon')
           return isType(mType, typeObjIdArray);
         }
       },
-      
+
+      TRANSFORM_LWRCASE_STR: 'transformLowerCaseStr',
+      TEST_IDXOF_STR: 'testIndexOfStr',
+
       // stamdard mongo datge fields
       ID: {
         field: 'ID', modelName: '_id', dfltValue: undefined, type: typeObjId
@@ -209,9 +223,21 @@ angular.module('ct.clientCommon')
 	"new" operator; as such, we could use the "this" reference to define object
 	properties and methods. But this implementation returns a public API.
 */
-  .provider('schema', ['$injector', 'SCHEMA_CONST', function ProvideSchema($injector, SCHEMA_CONST) {
+  .provider('schema', ['$injector', 'SCHEMA_CONST' , 'RESOURCE_CONST', function ProvideSchema($injector, SCHEMA_CONST, RESOURCE_CONST) {
 
-    var modelPropProperties = ['id', 'modelName', 'modelPath', 'factory', 'dfltValue', 'type'];
+    var modelPropProperties = ['id', 'modelName', 'modelPath', 'factory', 'dfltValue', 'type', 'filterTransform', 'filterTest', 'refSchema', 'refField'],
+      modelPropSchemaProperties = ['factory', 'dfltValue', 'type', 'filterTransform', 'filterTest', 'refSchema', 'refField'],
+      schemaFieldArgs = [
+        // same arder as Schema.prototype.addField() arguments!
+        SCHEMA_CONST.DIALOG_PROP,
+        SCHEMA_CONST.DISPLAY_PROP,
+        SCHEMA_CONST.MODEL_PROP,
+        SCHEMA_CONST.TYPE_PROP,
+        SCHEMA_CONST.TRANSFORM_PROP,
+        SCHEMA_CONST.TEST_PROP,
+        SCHEMA_CONST.REF_SCHEMA_PROP,
+        SCHEMA_CONST.REF_FIELD_PROP
+      ];
 
     /**
      * Create a Schema object
@@ -240,6 +266,185 @@ angular.module('ct.clientCommon')
         }
       });
       return $injector.instantiate(ModelProp, vals);
+    }
+
+    /**
+     * Add extra properties to the default string ModelProp arguments
+     * @param {object} args      ModelProp arguments object
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object} ModelProp arguments object
+     */
+    function addXtraArgs (args, xtra) {
+      if (args && xtra) {
+        for (var prop in xtra) {
+          args[prop] = xtra[prop];
+        }
+      }
+      return args;
+    }
+
+    /**
+     * Return an object with the default ModelProp arguments
+     * @param {string}        modelName Name of model field
+     * @param {*}             dfltValue Default value
+     * @param {string|object} factory   StandardFactory/name of same for object
+     * @param {string}        resource  Factory resource for the object
+     * @param {string}        type      Type; one of SCHEMA_CONST.FIELD_TYPES
+     * @returns {object}        ModelProp arguments object
+     */
+    function getBaseModelPropArgs (modelName, dfltValue, factory, resource, type) {
+      return {
+        modelName: modelName,
+        dfltValue: dfltValue,
+        factory: factory,
+        resource: resource,
+        type: type
+      };
+    }
+
+    /**
+     * Return an object with the default string ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object} ModelProp arguments object
+     */
+    function getStringModelPropArgs (modelName, xtra) {
+      var args = getBaseModelPropArgs(modelName, '', undefined, undefined, SCHEMA_CONST.FIELD_TYPES.STRING);
+      args.filterTransform = SCHEMA_CONST.TRANSFORM_LWRCASE_STR;
+      args.filterTest = SCHEMA_CONST.TEST_IDXOF_STR;
+      return addXtraArgs(args, xtra);
+    }
+
+    /**
+     * Return an object with the default number ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {number} dfltValue Default value
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object} ModelProp arguments object
+     */
+    function getNumberModelPropArgs (modelName, dfltValue, xtra) {
+      return addXtraArgs(
+              getBaseModelPropArgs(modelName, dfltValue, undefined, undefined, SCHEMA_CONST.FIELD_TYPES.NUMBER),
+              xtra
+            );
+    }
+
+    /**
+     * Return an object with the default date ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {number} dfltValue Default value
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object} ModelProp arguments object
+     */
+    function getDateModelPropArgs (modelName, dfltValue, xtra) {
+      return addXtraArgs(
+              getBaseModelPropArgs(modelName, dfltValue, undefined, undefined, SCHEMA_CONST.FIELD_TYPES.DATE),
+              xtra
+            );
+    }
+    
+    /**
+     * Return an object with the default boolean ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {number} dfltValue Default value
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object} ModelProp arguments object
+     */
+    function getBooleanModelPropArgs (modelName, dfltValue, xtra) {
+      return addXtraArgs(
+              getBaseModelPropArgs(modelName, dfltValue, undefined, undefined, SCHEMA_CONST.FIELD_TYPES.BOOLEAN),
+              xtra
+            );
+    }
+    
+
+    /**
+     * Return an object with the default ObjectId ModelProp arguments
+     * @param {string}        modelName Name of model field
+     * @param {string|object} factory   StandardFactory/name of same for object
+     * @param {string}        resource  Factory resource for the object
+     * @param {object}        schema    Schema for object referenced
+     * @param {number}        field     Field id of reference link field
+     * @param {object}        xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getObjectIdModelPropArgs (modelName, factory, resource, schema, field, xtra) {
+      var args = getBaseModelPropArgs(modelName, undefined, factory, resource, SCHEMA_CONST.FIELD_TYPES.OBJECTID);
+      args.refSchema = schema;
+      args.refField = field;
+      return addXtraArgs(args, xtra);
+    }
+
+    /**
+     * Return an object with the default array ModelProp arguments
+     * @param {string}        modelName Name of model field
+     * @param {string|object} factory   StandardFactory/name of same for object
+     * @param {string}        resource  Factory resource for the object
+     * @param {object}        xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getArrayModelPropArgs (modelName, type, factory, resource, xtra) {
+      return addXtraArgs(
+              getBaseModelPropArgs(modelName, [], factory, resource, type),
+              xtra
+            );
+    }
+
+    /**
+     * Return an object with the default string array ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getStringArrayModelPropArgs (modelName, xtra) {
+      return getArrayModelPropArgs(modelName, SCHEMA_CONST.FIELD_TYPES.STRING_ARRAY, undefined, undefined, xtra);
+    }
+
+    /**
+     * Return an object with the default number array ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getNumberArrayModelPropArgs (modelName, xtra) {
+      return getArrayModelPropArgs(modelName, SCHEMA_CONST.FIELD_TYPES.NUMBER_ARRAY, undefined, undefined, xtra);
+    }
+
+    /**
+     * Return an object with the default date array ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getDateArrayModelPropArgs (modelName, xtra) {
+      return getArrayModelPropArgs(modelName, SCHEMA_CONST.FIELD_TYPES.DATE_ARRAY, undefined, undefined, xtra);
+    }
+
+    /**
+     * Return an object with the default boolean array ModelProp arguments
+     * @param {string} modelName Name of model field
+     * @param {object} xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getBooleanArrayModelPropArgs (modelName, xtra) {
+      return getArrayModelPropArgs(modelName, SCHEMA_CONST.FIELD_TYPES.BOOLEAN_ARRAY, undefined, undefined, xtra);
+    }
+
+    /**
+     * Return an object with the default ObjectId array ModelProp arguments
+     * @param {string}        modelName Name of model field
+     * @param {string|object} factory   StandardFactory/name of same for object
+     * @param {string}        resource  Factory resource for the object
+     * @param {object}        schema    Schema for object referenced
+     * @param {number}        field     Field id of reference link field
+     * @param {object}        xtra      Optional extra properties to add
+     * @returns {object}        ModelProp arguments object
+     */
+    function getObjectIdArrayModelPropArgs (modelName, factory, resource, schema, field, xtra) {
+      var args = getArrayModelPropArgs(modelName, SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY, factory, resource, xtra);
+      args.refSchema = schema;
+      args.refField = field;
+      return args;
     }
 
     /**
@@ -350,72 +555,207 @@ angular.module('ct.clientCommon')
 
     }
 
-    
-    function ModelProp (id, modelName, modelPath, factory, dfltValue, type) {
-      this.id = id;
-      this.modelName = modelName;
-      this.modelPath = modelPath;
-      this.factory = factory;
-      this.dfltValue = dfltValue;
-      this.type = type;
+    /**
+     * Transform a string to lower case
+     * @param   {string} str String to transform
+     * @returns {string} lowercase string
+     */
+    function transformLowerCaseStr (str) {
+      return str.toLowerCase();
     }
     
-    ModelProp.$inject = ['id', 'modelName', 'modelPath', 'factory', 'dfltValue', 'type'];
+    /**
+     * Test that a string existins within another
+     * @param   {string}   value  String to test
+     * @param   {string}   filter [[Description]]
+     * @returns {[[Type]]} [[Description]]
+     */
+    function testIndexOfStr (value, filter) {
+      return (value.indexOf(filter) >= 0);
+    }
 
+    /**
+     * Wrapper for toString to prevent toString calls on undefined
+     * @param {object} value   Object to call toString() on
+     * @returns {string} string representation
+     */
+    function propertyToString (value) {
+      var str;
+      if (value === undefined) {
+        str = 'undefined';
+      } else if (value === null) {
+        str = 'null';
+      } else if (Array.isArray(value)) {
+        str = '[' + value.toString() + ']';
+      } else if (typeof value === 'function') {
+        str = value.name;
+      } else {
+        str = value.toString();
+      }
+      return str;
+    }
 
-    ModelProp.prototype.matches = function (args) {
+    /**
+     * Return a string representing the enumerable properties of this object
+     * @param {object} obj  Object to return string representation of
+     * @returns {string} string representation
+     */
+    function propertyString (obj) {
+      var str = '';
+      for (var property in obj) {
+        if (str) {
+          str += ', ';
+        }
+        str += property + ': ' + propertyToString(obj[property]);
+      }
+      return str;
+    }
+
+    /**
+     * Test if an object matches the specified arguments
+     * @param {object}  obj Object to test
+     * @param {object}  args Match criteria. Criteria are of the form:
+     *                    { <property name>: <test>, ... }
+     *                    where if <test> is 
+     *                    - a function; the value is passed to the predicate function
+     *                    - otherwise equivalence is tested using angular.equals()
+     * @returns {boolean} true if matches
+     */
+    function matches (obj, args) {
       var hits = 0,
         target = 0,
         tested = false;
       for (var prop in args) {
         tested = true;
         ++target;
-        if (this.hasOwnProperty(prop)) {
+        if (obj.hasOwnProperty(prop)) {
           if (typeof args[prop] === 'function') {
-            if (args[prop](this[prop])) {
+            if (args[prop](obj[prop])) {
               ++hits;
             }
-          } else if (args[prop] === this[prop]) {
+          } else if (angular.equals(args[prop], obj[prop])) {
             ++hits;
           }
         }
       }
       return (tested && (hits === target));
+    }
+    
+    /**
+     * Construct a ModelProp object representing a field in a database document
+     * @param {number}        id              Property id
+     * @param {string}        modelName       Name of model field
+     * @param {Array}         modelPath       Path to values within object
+     * @param {string|object} factory         StandardFactory/name of same for object
+     * @param {*}             dfltValue       Default value
+     * @param {string}        type            Value type; SCHEMA_CONST.FIELD_TYPES.STRING etc.
+     * @param {function}      filterTransform Function to transform value before a filter test
+     * @param {function}      filterTest      Function to perform a filter test
+     * @param {function}      refSchema       schema for ObjectId reference object
+     * @param {function}      refField        link field id for ObjectId reference object
+     */
+    function ModelProp (id, modelName, modelPath, factory, dfltValue, type, filterTransform, filterTest, refSchema, refField) {
+      this.id = id;
+      this.modelName = modelName;
+      this.modelPath = modelPath;
+      this.factory = factory;
+      this.dfltValue = dfltValue;
+      this.type = type;
+      if (filterTransform === SCHEMA_CONST.TRANSFORM_LWRCASE_STR) {
+        this.filterTransform = transformLowerCaseStr;
+      } else {
+        this.filterTransform = filterTransform;
+      }
+      if (filterTest === SCHEMA_CONST.TEST_IDXOF_STR) {
+        this.filterTest = testIndexOfStr;
+      } else {
+        this.filterTest = filterTransform;
+      }
+      this.refSchema = refSchema;
+      this.refField = refField;
+    }
+
+    ModelProp.$inject = ['id', 'modelName', 'modelPath', 'factory', 'dfltValue', 'type', 'filterTransform', 'filterTest', 'refSchema', 'refField'];
+
+    /**
+     * Test if this object matches the specified arguments
+     * @param   {object}  args Match criteria. Criteria are of the form:
+     *                      { <property name>: <test>, ... }
+     *                      where if <test> is 
+     *                      - a function the value is passed to the predicate function
+     *                      - otherwise equivalence is tested using angular.equals()
+     * @returns {boolean} true if matches
+     */
+    ModelProp.prototype.matches = function (args) {
+      return matches(this, args);
     };
 
+    
+    ModelProp.prototype.toString = function () {
+      return 'ModelProp { ' + propertyString(this) + '}';
+    };
 
+    /**
+     * Schema object constructor
+     * @param {string} name       Schema name
+     * @param {Array}  modelProps Model properties array
+     * @param {Array}  ids        ids for model properties
+     * @param {string} tag        id tag
+     */
     function Schema (SCHEMA_CONST, RESOURCE_CONST, name, modelProps, ids, tag) {
-
-      this.SCHEMA_CONST = SCHEMA_CONST;
-      this.RESOURCE_CONST = RESOURCE_CONST;
-      this.fields = [];
+      if (!Array.isArray(modelProps)) {
+        throw new TypeError('Invalid type for argument: modelProps');
+      }
       this.name = name;
       this.modelProps = modelProps;
       this.ids = ids;
       this.tag = tag;
+      this.fields = [];
     }
 
     Schema.$inject = ['SCHEMA_CONST', 'RESOURCE_CONST', 'name', 'modelProps', 'ids', 'tag'];
     
     /**
-     * Add a new entry to the Schema
-     * @param   {string}       dialog  String used in dialogs
-     * @param   {string}       display String displayed in dialogs
-     * @param   {Array|object} model   Field(s) from dm model
-     * @param   {string}       type    field type
-     * @param   {Object}       args    Additional optinal arguments:
-     *    @param   {Array|object} path    Field(s) providing path to field
-     *    @param   {function}     cb      Function to call for each option
-     * @returns {number}       index of added entry
+     * Identify this object as a Schema
      */
-    Schema.prototype.addField = function (dialog, display, model, type, args) {
+    Schema.prototype.isSchema = true;
+
+    /**
+     * Add a new entry to the Schema
+     * @param   {string}       dialog          String used in dialogs
+     * @param   {string}       display         String displayed in dialogs
+     * @param   {Array|object} model           Field(s) from db model
+     * @param   {string}       type            field type
+     * @param {function}     filterTransform Function to transform value before a filter test
+     * @param {function}     filterTest      Function to perform a filter test
+     * @param {object}       refSchema       schema for ObjectId reference object
+     * @param {number}       refField        link field id for ObjectId reference object
+     * @param   {Object}       args            Additional optinal arguments:
+     *    @param   {Array|object} path            Field(s) providing path to field
+     *    @param   {function}     cb              Function to call for each option
+     * @returns {number}       index of added entry
+     * 
+     * NOTE update schemaFieldArgs variable on any changes to arguments
+     */
+    Schema.prototype.addField = function (dialog, display, model, type, filterTransform, filterTest, refSchema, refField, args) {
       var modelArray,
         pathArray,
-        field;
+        field = {};
       if (!Array.isArray(model)) {
         modelArray = [model];
       } else {
         modelArray = model;
+      }
+      if (typeof filterTransform === 'object') {
+        if (filterTransform.isSchema) {
+          args = refSchema;
+          refField = filterTest;
+          refSchema = filterTransform;
+        } else {
+          args = filterTransform;
+        }
+        filterTest = undefined;
+        filterTransform = undefined;
       }
       if (args && args.path) {
         if (!Array.isArray(args.path)) {
@@ -424,14 +764,18 @@ angular.module('ct.clientCommon')
           pathArray = args.path;
         }
       }
-      field = {
-        dialog: dialog,
-        display: display,
-        model: modelArray,
-        type: type,
-        path: pathArray,
-        id: this.tag
-      };
+      
+      // TODO big overlap between schema fields & ModelProp object, fix
+      
+      for (var i = 0, 
+            len = (schemaFieldArgs.length < arguments.length ?
+                   schemaFieldArgs.length : arguments.length); i < len; ++i) {
+        field[schemaFieldArgs[i]] = arguments[i];
+      }
+
+      field[SCHEMA_CONST.ID_PROP] = this.tag;
+      field[SCHEMA_CONST.PATH_PROP] = pathArray;
+
       if (args && args.cb) {
         args.cb(field);
       }
@@ -444,7 +788,29 @@ angular.module('ct.clientCommon')
      * @param   {string}       dialog  String used in dialogs
      * @param   {string}       display String displayed in dialogs
      * @param   {Array|number} id      Schema id index or array of, e.g. 'ADDRSCHEMA.IDs.ADDR1'
-     * @param   {Object}       args    Additional optinal arguments:
+     * @param   {Object}       args    Additional optional arguments:
+     *    @param   {Array|object} path    Field(s) providing path to field
+     *    @param   {function}     cb      Function to call for each option
+     * @returns {number}       index of added entry
+     */
+    Schema.prototype.addFieldFromField = function (field, args) {
+      var addArgs = [];  // arguments for Schema.prototype.addField()
+
+      schemaFieldArgs.forEach(function (prop) {
+        addArgs.push(field[prop]);
+      });
+
+      addArgs.push(args);
+
+      return this.addField.apply(this, addArgs);
+    };
+
+    /**
+     * Add a new entry to the Schema
+     * @param   {string}       dialog  String used in dialogs
+     * @param   {string}       display String displayed in dialogs
+     * @param   {Array|number} id      Schema id index or array of, e.g. 'ADDRSCHEMA.IDs.ADDR1'
+     * @param   {Object}       args    Additional optional arguments:
      *    @param   {Array|object} path    Field(s) providing path to field
      *    @param   {function}     cb      Function to call for each option
      * @returns {number}       index of added entry
@@ -452,7 +818,16 @@ angular.module('ct.clientCommon')
     Schema.prototype.addFieldFromModelProp = function (dialog, display, id, args) {
       var idArray,
         modelArray = [],
-        type = this.SCHEMA_CONST.FIELD_TYPES.UNKNOWN,
+        addArgs = [dialog, display, modelArray],  // arguments for Schema.prototype.addField()
+        init = 0,
+        array = [
+          // NOTE: order must match arguments for Schema.prototype.addField()
+          { bit: 0x01, value: undefined, prop: SCHEMA_CONST.TYPE_PROP, missing: true },
+          { bit: 0x02, value: undefined, prop: SCHEMA_CONST.TRANSFORM_PROP },
+          { bit: 0x04, value: undefined, prop: SCHEMA_CONST.TEST_PROP },
+          { bit: 0x08, value: undefined, prop: SCHEMA_CONST.REF_SCHEMA_PROP },
+          { bit: 0x10, value: undefined, prop: SCHEMA_CONST.REF_FIELD_PROP }
+        ],
         modelProp;
 
       if (!Array.isArray(id)) {
@@ -468,19 +843,27 @@ angular.module('ct.clientCommon')
           throw new Error('Missing modelName');
         }
 
-        if (type === this.SCHEMA_CONST.FIELD_TYPES.UNKNOWN) {
-          type = modelProp.type;  // first time init
-        }
-        if (modelProp.type !== type) {
-          throw new Error('Type mismatch in multi-model');
-        } else {
-          if (!type) {
-            throw new Error('Missing type');
+        array.forEach(function (entry) {
+          if ((init & entry.bit) === 0) {
+            entry.value = modelProp[entry.prop];  // first time init
+            init |= entry.bit;
+            
+            addArgs.push(entry.value);  // add to addField arguments
           }
-        }
+              
+          if (modelProp[entry.prop] !== entry.value) {
+            throw new Error('Type mismatch in multi-model ' + entry.prop);
+          } else {
+            if (entry.missing && !entry.value) {
+              throw new Error('Missing ' + entry.prop);
+            }
+          }
+        });
       }, this);
 
-      return this.addField(dialog, display, modelArray, type, args);
+      addArgs.push(args);
+
+      return this.addField.apply(this, addArgs);
     };
 
     /**
@@ -504,24 +887,91 @@ angular.module('ct.clientCommon')
     };
 
     /**
-     * Callback the specified function for each field in the schema, providing the field details as the callback arguments
+     * Process a forEach callback
+     * @param {Array}    array    Array to traverse
      * @param {function} callback Function to callback taking the arguments:
-     *    @param {number}   schema   field index
-     *    @param {object}   schema   field details @see Schema.addField for details
+     *    @param {object}   field    field object
+     *    @param {number}   index    field index
+     *    @param {array}    array    field array
      * @param {object}   thisArg  The value of 'this' provided for the call to the callback function
      */
-    Schema.prototype.forEachField = function (callback, thisArg) {
+    function forEachCallback (array, callback, thisArg) {
       if (typeof callback === 'function') {
         var loop = true;
-        for (var i = 0; loop && (i < this.fields.length); ++i) {
-          loop = callback.call(thisArg, i, this.fields[i]);
+        for (var i = 0, ll = array.length; loop && (i < ll); ++i) {
+          loop = callback.call(thisArg, array[i], i, array);
           if (loop === undefined) {
             loop = true;
           }
         }
       }
+    }
+
+    /**
+     * Callback the specified function for each field in the schema, providing the field details as the callback arguments
+     * @param {function} callback Function to callback taking the arguments:
+     *    @param {object}   field    field object
+     *    @param {number}   index    field index
+     *    @param {array}    array    field array
+     * @param {object}   thisArg  The value of 'this' provided for the call to the callback function
+     */
+    Schema.prototype.forEachField = function (callback, thisArg) {
+      forEachCallback(this.fields, callback, thisArg);
     };
 
+    /**
+     * Process a list of ids callback
+     * @param {Array}    ids        Array of schema ids
+     * @param {object}   thisForGet Schema object for get function
+     * @param {function} getFunc    Function to get element in Schema object
+     * @param {function} callback   Function to callback taking the arguments:
+     *    @param {object}   field      field object
+     *    @param {number}   index      field index
+     *    @param {array}    array      field array
+     * @param {object}   thisArg    The value of 'this' provided for the call to the callback function
+     */
+    function forCalback (array, thisForGet, getFunc, ids, callback, thisArg) {
+      if (typeof callback === 'function') {
+        var loop = true;
+        for (var i = 0, ll = ids.length; loop && (i < ll); ++i) {
+          loop = callback.call(thisArg, getFunc.call(thisForGet, ids[i]), ids[i], array);
+          if (loop === undefined) {
+            loop = true;
+          }
+        }
+      }
+    }
+    
+    /**
+     * Callback the specified function for each field in the schema id array, providing the field details as the callback arguments
+     * @param {Array}    ids      Array of schema ids
+     * @param {function} callback Function to callback taking the arguments:
+     *    @param {object}   field    field object
+     *    @param {number}   index    field index
+     *    @param {array}    array    field array
+     * @param {object}   thisArg  The value of 'this' provided for the call to the callback function
+     */
+    Schema.prototype.forFields = function (ids, callback, thisArg) {
+      forCalback(this.fields, this, this.getField, ids, callback, thisArg);
+    };
+
+    /**
+     * Return a list of fields in this schema that match the specified criteria
+     * @param {object} args Criteria to match, 
+     *                      @see ModelProp.prototype.matches() for details
+     * @return {array}  Array of matching modelProp objects
+     */
+    Schema.prototype.getFieldList = function (args) {
+      var result = [];
+      this.fields.forEach(function (field) {
+        if (field.matches(args)) {
+          result.push(field);
+        }
+      });
+      return result;
+    };
+
+    
     /**
      * Return an object representing this schema as a string
      */
@@ -552,10 +1002,31 @@ angular.module('ct.clientCommon')
     };
 
     /**
-     * Return the default value for a field in this schema
-     * @param {number} id       Schema id index, e.g. 'ADDRSCHEMA.IDs.ADDR1'
-     * @param {string} property Name of property to return 
-     * @return {object} modelProp object or property of modelProp object
+     * Return an initialised filter object for this schema
+     */
+    Schema.prototype.getFilter = function (filterVal) {
+      var obj = {},
+        value,
+        dialog;
+      this.fields.forEach(function (field) {
+        dialog = field[SCHEMA_CONST.DIALOG_PROP];
+        if (typeof filterVal === 'function') {
+          value = filterVal(dialog);
+        } else if (typeof filterVal === 'object') {
+          value = filterVal[dialog];
+        } else {
+          value = filterVal;
+        }
+        obj[dialog] = value;
+      });
+      return obj;
+    };
+
+    /**
+     * Return a list of fields in this schema that match the specified criteria
+     * @param {object} args Criteria to match, 
+     *                      @see ModelProp.prototype.matches() for details
+     * @return {array}  Array of matching modelProp objects
      */
     Schema.prototype.getModelPropList = function (args) {
       var result = [];
@@ -589,6 +1060,32 @@ angular.module('ct.clientCommon')
     };
 
     /**
+     * Callback the specified function for each ModelProp in the schema, providing the ModelProp details as the callback arguments
+     * @param {function} callback     Function to callback taking the arguments:
+     *    @param {object}   modelProp ModelProp object
+     *    @param {number}   index     ModelProp index
+     *    @param {array}    array     ModelProp array
+     * @param {object}   thisArg      The value of 'this' provided for the call to the callback function
+     */
+    Schema.prototype.forEachModelProp = function (callback, thisArg) {
+      forEachCallback(this.modelProps, callback, thisArg);
+    };
+
+    /**
+     * Callback the specified function for each ModelProp in the schema id array, providing the ModelProp details as the callback arguments
+     * @param {Array}    ids      Array of schema ids
+     * @param {function} callback Function to callback taking the arguments:
+     *    @param {object}   modelProp ModelProp object
+     *    @param {number}   index     ModelProp index
+     *    @param {array}    array     ModelProp array
+     * @param {object}   thisArg  The value of 'this' provided for the call to the callback function
+     */
+    Schema.prototype.forModelProps = function (ids, callback, thisArg) {
+      forCalback(this.modelProps, this, this.getModelProp, ids, callback, thisArg);
+    };
+
+
+    /**
      * Return the default value for a field in this schema
      * @param {number} Schema id index, e.g. 'ADDRSCHEMA.IDs.ADDR1'
      * @return {object} default value of field
@@ -613,10 +1110,10 @@ angular.module('ct.clientCommon')
      */
     Schema.prototype.getStorageType = function (id) {
       var type;
-      if (this.SCHEMA_CONST.FIELD_TYPES.IS_ARRAY(this.getType(id))) {
-        type = this.RESOURCE_CONST.STORE_LIST;
+      if (SCHEMA_CONST.FIELD_TYPES.IS_ARRAY(this.getType(id))) {
+        type = RESOURCE_CONST.STORE_LIST;
       } else {
-        type = this.RESOURCE_CONST.STORE_OBJ;
+        type = RESOURCE_CONST.STORE_OBJ;
       }
       return type;
     };
@@ -840,6 +1337,17 @@ angular.module('ct.clientCommon')
       makeSortList: makeSortList,
       makeSubDocSortList: makeSubDocSortList,
 
+      getStringModelPropArgs: getStringModelPropArgs,
+      getNumberModelPropArgs: getNumberModelPropArgs,
+      getDateModelPropArgs: getDateModelPropArgs,
+      getBooleanModelPropArgs: getBooleanModelPropArgs,
+      getObjectIdModelPropArgs: getObjectIdModelPropArgs,
+      getStringArrayModelPropArgs: getStringArrayModelPropArgs,
+      getNumberArrayModelPropArgs: getNumberArrayModelPropArgs,
+      getDateArrayModelPropArgs: getDateArrayModelPropArgs,
+      getBooleanArrayModelPropArgs: getBooleanArrayModelPropArgs,
+      getObjectIdArrayModelPropArgs: getObjectIdArrayModelPropArgs,
+      
       // The provider must include a $get() method that will be our 
       // factory function for creating the service. This $get() method 
       // will be invoked using $injector.invoke() and can therefore use

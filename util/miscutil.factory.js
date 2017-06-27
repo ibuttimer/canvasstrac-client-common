@@ -42,7 +42,10 @@ function miscUtilFactory () {
     addSelectionCmds: addSelectionCmds,
     SET_SEL: 's',
     CLR_SEL: 'c',
-    TOGGLE_SEL: 't'
+    TOGGLE_SEL: 't',
+    
+    toInteger: toInteger,
+    call: call
   };
 
   return factory;
@@ -184,12 +187,8 @@ function miscUtilFactory () {
       throw new TypeError('predicate must be a function');
     }
     // If argument start was passed let n be ToInteger(start); else let n be 0.
-    var n = +start || 0;
-    if (Math.abs(n) === Infinity) {
-      n = 0;
-    }
-
-    var length = array.length >>> 0;
+    var n = toInteger(start),
+      length = array.length >>> 0;
 
     for (var i = n; i < length; i++) {
       if (predicate(array[i], i, array)) {
@@ -393,15 +392,20 @@ function miscUtilFactory () {
 
   /**
    * Return an array of 'selected' entries 
-   * @param {Array|ResourceList} list     ResourceList or Array of objects to extract selected items from
-   * @returns {Array} Array of selected items
+   * @param {Array|ResourceList} list ResourceList or Array of objects to extract selected items from
+   * @param {function}           func Function to apply to each selected entry
+   * @returns {Array}              Array of selected items
    */
-  function getSelectedList(list) {
+  function getSelectedList(list, func) {
     var selectedList = [];
 
     listForEach(list, function (entry) {
       if (entry.isSelected) {
-        selectedList.push(entry);
+        if (func) {
+          selectedList.push(func(entry));
+        } else {
+          selectedList.push(entry);
+        }
       }
     });
 
@@ -484,12 +488,8 @@ function miscUtilFactory () {
     } else {
       // process as array
       // If argument start was passed let n be ToInteger(start); else let n be 0.
-      var n = +start || 0;
-      if (Math.abs(n) === Infinity) {
-        n = 0;
-      }
-
-      var length = list.length >>> 0,
+      var n = toInteger(start),
+        length = list.length >>> 0,
         value;
 
       for (var i = n; i < length; i++) {
@@ -532,6 +532,34 @@ function miscUtilFactory () {
     scope.SET_SEL = factory.SET_SEL;
     scope.CLR_SEL = factory.CLR_SEL;
     scope.TOGGLE_SEL = factory.TOGGLE_SEL;
+  }
+
+  /**
+   * Get the toInteger value 
+   * @param   {number} value Value to convert
+   * @returns {number} integer value
+   */
+  function toInteger (value) {
+    // If argument value was passed let n be ToInteger(value); else let n be 0.
+    var n = +value /* unary plus */ || 0;
+    if (Math.abs(n) === Infinity) {
+      n = 0;
+    }
+    return n;
+  }
+
+  /**
+   * Safely call a function
+   * @param {function} func Numction to call
+   */
+  function call (func) {
+    if (typeof func === 'function') {
+      var args;
+      if (arguments.length > 1) {
+        args = Array.prototype.slice.call(arguments, 1);
+      }
+      func.apply(null, args);
+    }
   }
 
   

@@ -4,46 +4,19 @@
 
 angular.module('ct.clientCommon')
 
-  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', function ($provide, schemaProvider, SCHEMA_CONST) {
+  .config(['$provide', 'schemaProvider', 'SCHEMA_CONST', 'USERSCHEMA', 'PEOPLESCHEMA', 'ADDRSCHEMA', 'ANSWERSCHEMA', function ($provide, schemaProvider, SCHEMA_CONST, USERSCHEMA, PEOPLESCHEMA, ADDRSCHEMA, ANSWERSCHEMA) {
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'AVAILABLE', modelName: 'available',
-        dfltValue: true, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN
-      },
-      {
-        field: 'DONTCANVASS', modelName: 'dontCanvass',
-        dfltValue: false, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN
-      },
-      {
-        field: 'TRYAGAIN', modelName: 'tryAgain',
-        dfltValue: false, type: SCHEMA_CONST.FIELD_TYPES.BOOLEAN
-      },
-      {
-        field: 'SUPPORT', modelName: 'support',
-        dfltValue: -1, type: SCHEMA_CONST.FIELD_TYPES.NUMBER
-      },
-      {
-        field: 'DATE', modelName: 'date',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.DATE
-      },
-      {
-        field: 'ANSWERS', modelName: 'answers',
-        dfltValue: [], type: SCHEMA_CONST.FIELD_TYPES.OBJECTID_ARRAY
-      },
-      {
-        field: 'CANVASSER', modelName: 'canvasser', factory: 'userFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'VOTER', modelName: 'voter', factory: 'peopleFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
-      {
-        field: 'ADDRESS', modelName: 'address', factory: 'addressFactory',
-        dfltValue: undefined, type: SCHEMA_CONST.FIELD_TYPES.OBJECTID
-      },
+      schemaProvider.getBooleanModelPropArgs('available', true, { field: 'AVAILABLE' }),
+      schemaProvider.getBooleanModelPropArgs('dontCanvass', false, { field: 'DONTCANVASS' }),
+      schemaProvider.getBooleanModelPropArgs('tryAgain', false, { field: 'TRYAGAIN' }),
+      schemaProvider.getNumberModelPropArgs('support', -1, { field: 'SUPPORT' }),
+      schemaProvider.getDateModelPropArgs('date', undefined, { field: 'DATE' }),
+      schemaProvider.getObjectIdArrayModelPropArgs('answers', 'answerFactory', 'answer', ANSWERSCHEMA, ANSWERSCHEMA.IDs.ID, { field: 'ANSWERS' }),
+      schemaProvider.getObjectIdModelPropArgs('canvasser', 'userFactory', 'user', USERSCHEMA, USERSCHEMA.IDs.ID, { field: 'CANVASSER' }),
+      schemaProvider.getObjectIdModelPropArgs('voter', 'peopleFactory', 'person', PEOPLESCHEMA, PEOPLESCHEMA.IDs.ID, { field: 'VOTER' }),
+      schemaProvider.getObjectIdModelPropArgs('address', 'addressFactory', 'address', ADDRSCHEMA, ADDRSCHEMA.IDs.ID, { field: 'ADDRESS' }),
       SCHEMA_CONST.CREATEDAT,
       SCHEMA_CONST.UPDATEDAT
     ],
@@ -98,65 +71,38 @@ angular.module('ct.clientCommon')
     });
   }])
 
-  .filter('filterCanvassResult', ['SCHEMA_CONST', 'miscUtilFactory', function (SCHEMA_CONST, miscUtilFactory) {
-
-    function filterCanvassResultFilter(input, schema, filterBy) {
-
-      // canvass result specific filter function
-      var out = [];
-
-      if (!miscUtilFactory.isEmpty(filterBy)) {
-        var testCnt = 0;  // num of fields to test as speced by filter
-
-        schema.forEachField(function(idx, fieldProp) {
-          if (filterBy[fieldProp[SCHEMA_CONST.DIALOG_PROP]]) {  // filter uses dialog properties
-            ++testCnt;
-          }
-        });
-        
-        // TODO filter canvass result function
-        out = input;
-
-      } else {
-        out = input;
-      }
-      return out;
-    }
-
-    return filterCanvassResultFilter;
-  }])
-
   .factory('canvassResultFactory', canvassResultFactory);
 
 /* Manually Identify Dependencies
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassResultFactory.$inject = ['$resource', '$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'surveyFactory',
-  'addressFactory', 'electionFactory', 'userFactory', 'SCHEMA_CONST', 'CANVASSRES_SCHEMA', 'consoleService'];
-function canvassResultFactory($resource, $injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, surveyFactory,
-  addressFactory, electionFactory, userFactory, SCHEMA_CONST, CANVASSRES_SCHEMA, consoleService) {
+canvassResultFactory.$inject = ['$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'surveyFactory',
+  'addressFactory', 'electionFactory', 'userFactory', 'miscUtilFactory', 'SCHEMA_CONST', 'CANVASSRES_SCHEMA', 'consoleService'];
+function canvassResultFactory($injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, surveyFactory,
+  addressFactory, electionFactory, userFactory, miscUtilFactory, SCHEMA_CONST, CANVASSRES_SCHEMA, consoleService) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'canvassResultFactory',
-      getCanvassResult: getCanvassResult,
       readRspObject: readRspObject,
       readResponse: readResponse,
       storeRspObject: storeRspObject,
-      setFilter: setFilter,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      forEachSchemaField: forEachCanvassResSchemaField,
-      getSortOptions: getSortOptions,
+
       getSortFunction: getSortFunction
     },
     con = consoleService.getLogger(factory.NAME);
 
   resourceFactory.registerStandardFactory(factory.NAME, {
-    storeId: storeId,
+    storeId: CANVASSRES_SCHEMA.ID_TAG,
     schema: CANVASSRES_SCHEMA.SCHEMA,
-    addInterface: factory // add standard factory functions to this factory
+    sortOptions: CANVASSRES_SCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      result: resourceFactory.getResourceConfigWithId('canvassresult', {
+                        saveMany: { method: 'POST', isArray: true }
+                      })
+    }
   });
   
   return factory;
@@ -164,24 +110,6 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
   /* function implementation
     -------------------------- */
 
-  function getCanvassResult() {
-    /* https://docs.angularjs.org/api/ngResource/service/$resource
-      default action of resource class:
-        { 'get':    {method:'GET'},
-          'save':   {method:'POST'},
-          'query':  {method:'GET', isArray:true},
-          'remove': {method:'DELETE'},
-          'delete': {method:'DELETE'} };
-
-      add custom update & multiple save methods
-    */
-    return $resource(baseURL + 'canvassresult/:id', { id: '@id' },
-                      {'update': {method: 'PUT'},
-                       'saveMany': {method: 'POST', isArray: true}
-                      });
-  }
-  
-  
   /**
    * Read a server response canvass result object
    * @param {object} response   Server response
@@ -275,80 +203,6 @@ function canvassResultFactory($resource, $injector, $filter, baseURL, storeFacto
     return resourceFactory.storeServerRsp(canvassRes, storeArgs);
   }
 
-  /**
-   * Create storeFactory id
-   * @param {string}   id   Factory id to generate storeFactory id from
-   */
-  function storeId (id) {
-    return CANVASSRES_SCHEMA.ID_TAG + id;
-  }
-  
-  /**
-   * Set the filter for a canvass result ResourceList object
-   * @param {string} id     Factory id of object
-   * @param   {object} [filter={}] Filter object to use, ResourceFilter object or no filter
-   * @param {number} flags  storefactory flags
-   * @returns {object} canvass result ResourceList object
-   */
-  function setFilter(id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  /**
-   * Get the default sort options for a canvass result ResourceList object
-   * @returns {object} canvass result ResourceList sort options
-   */
-  function getSortOptions() {
-    return CANVASSRES_SCHEMA.SORT_OPTIONS;
-  }
-
-  /**
-   * Execute the callback on each of the schema fields
-   */
-  function forEachCanvassResSchemaField(callback) {
-    CANVASSRES_SCHEMA.SCHEMA.forEachField(callback);
-  }
-  
-  /**
-   * Get a new filter object
-   * @param {object} base           filter base object
-   * @param {function} customFilter custom filter function
-   * @returns {object} canvass result ResourceList filter object
-   */
-  function newFilter(base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(CANVASSRES_SCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-  
-  /**
-   * Generate a filtered list
-   * @param {object} reslist    canvass result ResourceList object to filter
-   * @param {object} filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array} filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // canvass result specific filter function
-    return filterFactory.getFilteredList('filterCanvassResult', reslist, filter, xtraFilter);
-  }
-  
-  /**
-   * Default canvass result ResourceList custom filter function
-   * @param {object} reslist    canvass result ResourceList object to filter
-   * @param {object} filter     filter to apply
-   */
-  function filterFunction(reslist, filter) {
-    // canvass result specific filter function
-    reslist.filterList = getFilteredList(reslist, filter);
-  }
-  
   /**
    * Get the sort function for a canvass result ResourceList
    * @param   {object} sortOptions  List of possible sort option

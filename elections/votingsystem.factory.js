@@ -8,18 +8,9 @@ angular.module('ct.clientCommon')
 
     var details = [
       SCHEMA_CONST.ID,
-      {
-        field: 'NAME', modelName: 'name',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'DESCRIPTION', modelName: 'description',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      },
-      {
-        field: 'ABBREVIATION', modelName: 'abbreviation',
-        dfltValue: '', type: SCHEMA_CONST.FIELD_TYPES.STRING
-      }
+      schemaProvider.getStringModelPropArgs('name', { field: 'NAME' }),
+      schemaProvider.getStringModelPropArgs('description', { field: 'DESCRIPTION' }),
+      schemaProvider.getStringModelPropArgs('abbreviation', { field: 'ABBREVIATION' })
     ],
       ids = {},
       modelProps = [];
@@ -67,45 +58,37 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-votingsystemFactory.$inject = ['$resource', '$injector', '$filter', 'storeFactory', 'resourceFactory', 'filterFactory', 'consoleService',
+votingsystemFactory.$inject = ['$injector', '$filter', 'storeFactory', 'resourceFactory', 'filterFactory', 'consoleService',
   'miscUtilFactory', 'SCHEMA_CONST', 'VOTINGSYSSCHEMA'];
 
-function votingsystemFactory ($resource, $injector, $filter, storeFactory, resourceFactory, filterFactory, consoleService, 
+function votingsystemFactory ($injector, $filter, storeFactory, resourceFactory, filterFactory, consoleService, 
   miscUtilFactory, SCHEMA_CONST, VOTINGSYSSCHEMA) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
       NAME: 'votingsystemFactory',
-      getVotingSystems: getVotingSystems,
       readRspObject: readRspObject,
       readResponse: readResponse,
       storeRspObject: storeRspObject,
-      setFilter:setFilter,
-      getSortOptions: getSortOptions,
-      forEachSchemaField: forEachVotingSysSchemaField,
-      newFilter: newFilter,
-      getFilteredList: getFilteredList,
-      filterFunction: filterFunction,
+
       getSortFunction: getSortFunction
     },
     con = consoleService.getLogger(factory.NAME);
 
   resourceFactory.registerStandardFactory(factory.NAME, {
-    storeId: storeId,
+    storeId: VOTINGSYSSCHEMA.ID_TAG,
     schema: VOTINGSYSSCHEMA.SCHEMA,
-    addInterface: factory // add standard factory functions to this factory
+    sortOptions: VOTINGSYSSCHEMA.SORT_OPTIONS,
+    addInterface: factory, // add standard factory functions to this factory
+    resources: {
+      system: resourceFactory.getResourceConfigWithId('votingsystems')
+    }
   });
   
   return factory;
 
   /* function implementation
     -------------------------- */
-
-  function getVotingSystems () {
-    return resourceFactory.getResources('votingsystems');
-    
-  }
-  
 
   /**
    * Read a server response voting system object
@@ -179,73 +162,6 @@ function votingsystemFactory ($resource, $injector, $filter, storeFactory, resou
       factory: $injector.get(factory.NAME)
     });
     return resourceFactory.storeServerRsp(obj, storeArgs);
-  }
-
-  /**
-   * Create storeFactory id
-   * @param {string}   id   Factory id to generate storeFactory id from
-   */
-  function storeId (id) {
-    return VOTINGSYSSCHEMA.ID_TAG + id;
-  }
-
-  /**
-   * Set the filter for a ResourceList
-   * @param {string} id                   ResourceList id
-   * @param {object} [filter=newFilter()] ResourceFilter to set
-   * @param {number} flags                storefactoryFlags
-   * @returns {object} ResourceList object
-   */
-  function setFilter(id, filter, flags) {
-    if (!filter) {
-      filter = newFilter();
-    }
-    return resourceFactory.setFilter(storeId(id), filter, flags);
-  }
-
-  function getSortOptions() {
-    return VOTINGSYSSCHEMA.SORT_OPTIONS;
-  }
-
-  function forEachVotingSysSchemaField(callback) {
-    VOTINGSYSSCHEMA.SCHEMA.forEachField(callback);
-  }
-
-  /**
-   * Generate a new ResourceFilter
-   * @param {object}   base         Base object to generate filter from
-   * @param {function} customFilter Custom filter function
-   * @param {boolean}  allowBlank   Allow blanks flag
-   */
-  function newFilter(base, customFilter) {
-    if (!customFilter) {
-      customFilter = filterFunction;
-    }
-    var filter = filterFactory.newResourceFilter(VOTINGSYSSCHEMA.SCHEMA, base);
-    filter.customFunction = customFilter;
-    return filter;
-  }
-
-  /**
-   * Generate a filtered list
-   * @param {object} reslist    Election ResourceList object to filter
-   * @param {object} filter     filter to apply
-   * @param {function} xtraFilter Function to provide additional filtering
-   * @returns {Array} filtered list
-   */
-  function getFilteredList (reslist, filter, xtraFilter) {
-    // voting system specific filter function
-    return filterFactory.getFilteredList('filterVotingSys', reslist, filter, xtraFilter);
-  }
-
-  /**
-   * Voting system-specific filter function
-   * @param {object} reslist ResourceList object
-   * @param {object} filter  Filter object to use (not ResourceFilter)
-   */
-  function filterFunction(reslist, filter) {
-    // voting system specific filter function
-    reslist.filterList = getFilteredList(reslist, filter);
   }
 
   function getSortFunction(options, sortBy) {
