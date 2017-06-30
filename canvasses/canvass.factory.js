@@ -253,29 +253,37 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
   function linkAddressAndResults (addrArgs, resultArgs, response) {
     if (addrArgs && resultArgs) {
       var addresses,
-        results;
+        results,
+        obj,
+        map;
 
       miscUtilFactory.toArray(response).forEach(function (rsp) {
-        addresses = [];
-        results = [];
+        addresses = []; // array of address maps
+        results = [];   // array of arrays of results
 
         miscUtilFactory.toArray(addrArgs).forEach(function (addrArg) {
-          addresses.push(resourceFactory.getObjectInfo(rsp, addrArg).object);
+          obj = resourceFactory.getObjectInfo(rsp, addrArg).object;
+          if (obj) {
+            map = miscUtilFactory.arrayToMap(obj, '_id');
+            addresses.push(map);
+          }
         });
         miscUtilFactory.toArray(resultArgs).forEach(function (resArg) {
-          results.push(resourceFactory.getObjectInfo(rsp, resArg).object);
+          obj = resourceFactory.getObjectInfo(rsp, resArg).object;
+          if (obj) {
+            results.push(obj);
+          }
         });
+
+        con.debug('linkAddressAndResults: ' + addresses.length + ' ' + results.length);
 
         if (addresses.length && results.length) {
           results.forEach(function (result) {
             result.forEach(function (resObj) {
               addresses.forEach(function (address) {
-                var addr = address.find(function (entry) {
-                  return (entry._id === resObj.address._id);
-                });
-                if (addr) {
+                if (address[resObj.address._id]) {  // result address id found in address map
                   // link address and canvass result
-                  addr.canvassResult = resObj._id;
+                  address.canvassResult = resObj._id;
                 }
               });
             });

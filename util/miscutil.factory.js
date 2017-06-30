@@ -45,7 +45,8 @@ function miscUtilFactory () {
     TOGGLE_SEL: 't',
     
     toInteger: toInteger,
-    call: call
+    call: call,
+    arrayToMap: arrayToMap
   };
 
   return factory;
@@ -552,7 +553,7 @@ function miscUtilFactory () {
    * Safely call a function
    * @param {function} func Numction to call
    */
-  function call (func) {
+  function call(func) {
     if (typeof func === 'function') {
       var args;
       if (arguments.length > 1) {
@@ -562,5 +563,35 @@ function miscUtilFactory () {
     }
   }
 
-  
+  /**
+   * Create an object with propertry names being the value of the specified property,
+   * and values being the corresponding array object
+   * @param {array} array Array to convert
+   * @param {string} prop Name of property to use as key
+   * @return {object} object mapping property values to array objects
+   */
+  function arrayToMap(array, prop) {
+    var map = {},
+      forEach;
+
+    if (array.isResourceList) {
+      forEach = 'forEachInList';  // resource list forEach function
+    } else {
+      forEach = 'forEach';     // Array forEachfunction
+    }
+    array[forEach](function (entry) {
+      if (entry.hasOwnProperty(prop)) {
+        if (map.hasOwnProperty(entry[prop])) {
+          throw new Error('Map already has property ' + entry[prop]);
+        } else {
+          map[entry[prop]] = entry;
+        }
+      } else {
+        throw new Error('Entry missing property ' + prop);
+      }
+    });
+    return map;
+  }
+
+
 }

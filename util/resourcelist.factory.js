@@ -615,11 +615,12 @@ function resourceListFactory ($filter, $injector, storeFactory, miscUtilFactory,
   /**
    * Call the callback function for each of the entries in this objects list
    * @param {function} callback   function to callback
+   * @param {object}   thisArg    Optional, object to use as this when executing callback.
    */
-  ResourceList.prototype.forEachInList = function (callback) {
+  ResourceList.prototype.forEachInList = function (callback, thisArg) {
     this.list.forEach(function (entry) {
       callback(entry);
-    });
+    }, thisArg);
   };
 
   /**

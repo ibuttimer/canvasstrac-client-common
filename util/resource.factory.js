@@ -80,6 +80,8 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     standardiseArgs: standardiseArgs,
     getStandardArgsObject: getStandardArgsObject,
     checkStandardArgsObjectArgs: checkStandardArgsObjectArgs,
+    checkArgs: checkArgs,
+    arrayiseArguments: arrayiseArguments,
     findInStandardArgs: findInStandardArgs,
     findAllInStandardArgs: findAllInStandardArgs,
     addResourcesToArgs: addResourcesToArgs,
@@ -92,8 +94,17 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     
     extendFactory: extendFactory
   },
-  modelArgsMap = {};
-  
+  modelArgsMap = {},
+  StandardArgsInfo = [
+    // arg info for checkStandardArgsObjectArgs()
+    { name: 'factory', test: angular.isString, dflt: undefined },
+    { name: 'subObj', test: angular.isArray, dflt: undefined },
+    { name: 'schema', test: angular.isObject, dflt: {} },
+    { name: 'flags', test: angular.isNumber, dflt: storeFactory.NOFLAG },
+    { name: 'next', test: angular.isFunction, dflt: undefined },
+    { name: 'custom', test: angular.isObject, dflt: {} }
+  ];
+
   // add additional methods to factory
   extendFactory(factory, standardFactoryFactory);
   extendFactory(factory, resourceListFactory);
@@ -349,12 +360,11 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   }
 
   /**
-   * Process a populated sub document array, by copying the data to a new factory object and 
+   * Process a populated sub document, by copying the data to a new factory object and 
    * transforming the original to ObjectIds.
-   * @param {Array}         array   Populated array received from host
-   * @param {Array|string}  ids     Factory id/array of ids to copy data to
-   * @param {object}        factory Factory to use to generate new factory objects
-   * @param {number}        flags   storefactory flags
+   * @param {object} response Server response
+   * @param {object} args     process arguments object, @see storeServerRsp() for details
+   * @param {object} parent   Object's parent
    */
   function storeSubDoc(response, args, parent) {
 
@@ -380,7 +390,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
       } else if (SCHEMA_CONST.FIELD_TYPES.IS_OBJECTID_ARRAY(stdArgs.type)) {
         // field is an array of objectId
         if (Array.isArray(toSave)) {
-          if (resp.toString().indexOf('ResourceList') === 0) {
+          if (resp.isResourceList) {
             list = resp.list; // its a ResourceList
           } else {
             list = resp;  // should be an raw array
@@ -396,9 +406,9 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
   /**
    * Standardise a server response argument object
-   * @param {object}       args     process arguments object with following properties:
-   * @see storeServerRsp()
-   * @return {object}       arguments object
+   * @param {object}   args     process arguments object, @see storeServerRsp() for details
+   * @param {object}   parent   Object's parent
+   * @return {object}  arguments object
    */
   function standardiseArgs (args, parent) {
 
@@ -444,8 +454,9 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @param {object} custom       Custom properties
    * @returns {object} Standard args object
    */
-  function getStandardArgsObject (objId, factory, subObj, schema, flags, next, custom) {
-    var args = checkStandardArgsObjectArgs(factory, subObj, schema, flags, next, custom);
+  function getStandardArgsObject(objId, factory, subObj, schema, flags, next, custom) {
+
+    var args = intCheckStandardArgsObjectArgs(arrayiseArguments(arguments, 1)); // exclude objId
     return {
       objId: objId,
       factory: args.factory,
@@ -468,42 +479,77 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
    * @param {function} next       Function to call following completion
    * @param {object} custom       Custom properties
    * @returns {object} args object
+   * 
+   * NOTE 1: make sure to update StandardArgsInfo on any change to function prototype.
+   *      2: this function is not for internal use, use intCheckStandardArgsObjectArgs() within this factory
    */
   function checkStandardArgsObjectArgs(factory, subObj, schema, flags, next, custom) {
-    if (!angular.isString(factory)) {
-      custom = next;
-      next = flags;
-      flags = schema;
-      schema = subObj;
-      subObj = factory;
-      factory = undefined;
+    return intCheckStandardArgsObjectArgs(arguments);
+  }
+
+  /**
+   * Check arguemnts for getRspOptionsObject() making sure args are correctly positioned
+   * @param {object}  funcArguments Argument object for original function
+   * @return {object} checked argument object
+   * 
+   * NOTE: Interval version of checkStandardArgsObjectArgs()
+   */
+  function intCheckStandardArgsObjectArgs(funcArguments) {
+    return checkArgs(StandardArgsInfo, funcArguments);
+  }
+
+  /**
+   * Check arguments for correct positioning in function call
+   * @param {Array}         argsInfo      Array of argument info objects:
+   *                                      { name: <arg name>, test: <predicate validity test>, 
+   *                                        dflt: <default value> }
+   * @param {object|Array}  funcArguments Argument object for original function or an array of arguments
+   * @return {object} checked argument object
+   */
+  function checkArgs(argsInfo, funcArguments) {
+
+    var args = (Array.isArray(funcArguments) ? funcArguments.slice() : arrayiseArguments(funcArguments)),
+      arg,
+      checked = {};
+
+    for (var i = 0, ll = argsInfo.length; i < ll; ++i) {
+      arg = argsInfo[i];
+      if (!arg.test(args[i])) {
+        if (args.length < ll) { // num of args < expected
+          args.splice(i, 0, arg.dflt);  // insert argument default value
+        } else {
+          // right shift arguments
+          for (var j = args.length - 1; j > i; --j) {
+            args[j] = args[j - 1];
+          }
+          args[i] = arg.dflt;   // set argument to default value
+        }
+      }
+      checked[arg.name] = args[i];
     }
-    if (!angular.isArray(subObj)) {
-      custom = next;
-      next = flags;
-      flags = schema;
-      schema = subObj;
-      subObj = undefined;
+    return checked;
+  }
+
+  /**
+   * 
+   * Convert a function arguments object to an array
+   * @param {object}  funcArguments Argument object for original function
+   * @param {number}  start         Argument indexto start from
+   * @return {Array} argument array
+   */
+  function arrayiseArguments(funcArguments, start) {
+    var array;
+    if (start === undefined) {
+      start = 0;
     }
-    if (!angular.isObject(schema)) {
-      custom = next;
-      next = flags;
-      flags = schema;
-      schema = {};
+    if (start >= funcArguments.length) {
+      array = [];
+    } else if (funcArguments.length === 1) {
+      array = [funcArguments[0]];
+    } else {
+      array = Array.prototype.slice.call(funcArguments, start);
     }
-    if (!angular.isNumber(flags)) {
-      custom = next;
-      next = flags;
-      flags = storeFactory.NOFLAG;
-    }
-    if (!angular.isFunction(next)) {
-      custom = next;
-      next = undefined;
-    }
-    return {
-      factory: factory, schema: schema, subObj: subObj,
-      flags: flags, next: next, custom: custom
-    };
+    return array;
   }
 
   /**

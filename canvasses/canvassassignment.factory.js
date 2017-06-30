@@ -218,15 +218,16 @@ function canvassAssignmentFactory($injector, $filter, baseURL, storeFactory, res
    */
   function storeRspObject (obj, args) {
 
-    var subObjects, i, stdArgs;
+    var subObjects, i, ll;
 
     // store sub objects first
     if (args.subObj) {
       subObjects = miscUtilFactory.toArray(args.subObj);
-      for (i = 0; i < subObjects.length; ++i) {
-        stdArgs = resourceFactory.standardiseArgs(subObjects[i]);
 
-        resourceFactory.storeSubDoc(obj, stdArgs, args);
+      con.debug('Store canvass assignment subobjs: ' + subObjects.length);
+
+      for (i = 0, ll = subObjects.length; i < ll; ++i) {
+        resourceFactory.storeSubDoc(obj, subObjects[i], args);
       }
     }
 
@@ -280,6 +281,8 @@ function canvassAssignmentFactory($injector, $filter, baseURL, storeFactory, res
         canvsrs = countProperties(addrCanvsrCanvsrsArgs, linkArg),
         addrs = countProperties(addrCanvsrAddrsArgs, linkArg),
         lists = {},
+        obj,
+        map,
         addressToLink;
       
       // check have all the args
@@ -288,11 +291,26 @@ function canvassAssignmentFactory($injector, $filter, baseURL, storeFactory, res
         // response may be an array depending on query params
         miscUtilFactory.toArray(response).forEach(function (canvasserAssignment) {
 
-          // get the objects
+          // get the objects nd put into arrays
           addrCanvsrObjArgs.forEach(function (flag) {
             lists[flag] = [];
             miscUtilFactory.toArray(linkArg[flag]).forEach(function (objArg) {
-              lists[flag].push(resourceFactory.getObjectInfo(canvasserAssignment, objArg).object);
+              obj = resourceFactory.getObjectInfo(canvasserAssignment, objArg).object;
+              if (obj) {
+                switch (flag) {
+                  case factory.ADDR_CANVSR_LINKCANVASSER:
+                  case factory.ADDR_CANVSR_LINKADDRESS:
+                    // save link canvasser & their allocated addresses as it
+                    lists[flag].push(obj);
+                    break;
+                  default:
+                    // convert to map for easy lookup
+                    map = miscUtilFactory.arrayToMap(obj, '_id');
+                    lists[flag].push(map);
+                    break;
+                }
+              }
+              //lists[flag].push(resourceFactory.getObjectInfo(canvasserAssignment, objArg).object);
             });
           });
           // get the lists
@@ -300,7 +318,13 @@ function canvassAssignmentFactory($injector, $filter, baseURL, storeFactory, res
             lists[flag] = [];
             miscUtilFactory.toArray(linkArg[flag]).forEach(function (listArg) {
               miscUtilFactory.toArray(listArg.objId).forEach(function (objId) {
-                lists[flag].push(listArg.factory.getList(objId));
+                obj = listArg.factory.getList(objId);
+                if (obj) {
+                  map = miscUtilFactory.arrayToMap(obj, '_id');
+                  lists[flag].push(map);
+                }
+
+                //lists[flag].push(listArg.factory.getList(objId));
               });
             });
           });
@@ -335,40 +359,29 @@ function canvassAssignmentFactory($injector, $filter, baseURL, storeFactory, res
             });
 
             linkCanvasserData.forEach(function (linkCanvasser) {
+              con.debug('Link canvasser: ' + JSON.stringify(linkCanvasser));
               if (linkCanvasser) {
                 // find canvasser whose allocation it is in list of assigned canvassers
                 linkCanvasserListArray.forEach(function (linkCanvasserListData) {
                   linkCanvasserListData.forEach(function (canvasserList) {
                     var canvsrFind;
-                    if (canvasserList.isResourceList) {
-                      canvsrFind = 'findInList';  // resource list find function
-                    } else {
-                      canvsrFind = 'find';        // Array find function
-                    }
-                    canvasserToLink = canvasserList[canvsrFind](function (canvsr) {
-                      return (canvsr._id === linkCanvasser._id);
-                    });
+                    canvasserToLink = canvasserList[linkCanvasser._id];
                     if (canvasserToLink) {
+                      con.debug('Canvasser to link: ' + JSON.stringify(canvasserToLink));
 
                       // save id of canvasser's allocation record
                       canvasserToLink.allocId = canvasserAssignment._id;
 
                       // find the allocated address in the list of assigned addresses
                       linkAddressData.forEach(function (linkAddressList) {
+                        con.debug('Link address list: ' + JSON.stringify(linkAddressList));
                         if (linkAddressList) {
                           linkAddressList.forEach(function (linkAddress) {
                             // find address to link in list of addresses
                             linkAddressListArray.forEach(function (linkAddressListData) {
                               linkAddressListData.forEach(function (addressList) {
-                                var addrFind;
-                                if (addressList.isResourceList) {
-                                  addrFind = 'findInList';  // resource list find function
-                                } else {
-                                  addrFind = 'find';        // Array find function
-                                }
-                                addressToLink = addressList[addrFind](function (addr) {
-                                  return (addr._id === linkAddress._id);
-                                });
+                                addressToLink = addressList[linkAddress._id];
+                                con.debug('Address to link: ' + JSON.stringify(addressToLink));
                                 if (addressToLink) {
                                   linkCanvasserToAddr(canvasserToLink, addressToLink, labeller);
                                 }
