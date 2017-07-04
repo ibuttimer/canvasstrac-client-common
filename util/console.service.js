@@ -11,15 +11,19 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-consoleService.$inject = ['$injector'];
+consoleService.$inject = ['$injector', 'DBG'];
 
-function consoleService($injector) {
+function consoleService($injector, DBG) {
 
   /*jshint validthis:true */
   this.getLogger = function (tag) {
     return $injector.instantiate(ConsoleLogger, {tag: tag});
   };
   
+  /*jshint validthis:true */
+  this.isEnabled = function (tag) {
+    return DBG.isEnabled(getConsoleLoggerTag(tag));
+  };
 }
 
 function getConsoleLoggerTag (tag) {

@@ -81,23 +81,27 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
-      NAME: 'canvassFactory',
-      readRspObject: readRspObject,
-      readResponse: readResponse,
+    NAME: 'canvassFactory',
+    readRspObject: readRspObject,
+    readResponse: readResponse,
 
-      getSortFunction: getSortFunction,
+    getSortFunction: getSortFunction,
 
-      storeRspObject: storeRspObject,
+    storeRspObject: storeRspObject,
 
-      processAddressResultsLink: processAddressResultsLink,
-      ADDR_RES_LINKADDRESS: 'addrResLinkAddr',  // link address flag for linking addresses & results
-      ADDR_RES_LINKRESULT: 'addrResLinkRes',    // link result flag for linking addresses & results
+    processAddressResultsLink: processAddressResultsLink,
+    ADDR_RES_LINKADDRESS: 'addrResLinkAddr',  // link address flag for linking addresses & results
+    ADDR_RES_LINKRESULT: 'addrResLinkRes',    // link result flag for linking addresses & results
 
-      QUES_RES_LINKQUES: 'quesResLinkQues', // link results flag for linking questions & results
-      QUES_RES_LINKRES: 'quesResLinkRes'    // link results flag for linking questions & results
+    QUES_RES_LINKQUES: 'quesResLinkQues', // link results flag for linking questions & results
+    QUES_RES_LINKRES: 'quesResLinkRes'    // link results flag for linking questions & results
 
-    },
+  },
+  con;  // console logger
+
+  if (consoleService.isEnabled(factory.NAME)) {
     con = consoleService.getLogger(factory.NAME);
+  }
 
   resourceFactory.registerStandardFactory(factory.NAME, {
     storeId: CANVASSSCHEMA.ID_TAG,
@@ -137,7 +141,9 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
     processAddressResultsLink(response, stdArgs);
     processQuestionResultsLink(response, stdArgs);
 
-    con.debug('Read canvass rsp object: ' + object);
+    if (con) {
+      con.debug('Read canvass rsp object: ' + object);
+    }
 
     return object;
   }
@@ -222,19 +228,32 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
    */
   function storeRspObject (obj, args) {
 
+    // async version
+    //factory.storeRspObjectTest(factory.NAME, resourceFactory, obj, args, con, 'canvass');
+
     var subObjects, i, stdArgs;
 
     // store sub objects first
     if (args.subObj) {
       subObjects = miscUtilFactory.toArray(args.subObj);
+
+      if (con) {
+        con.debug('Store canvass subobjs: ' + subObjects.length);
+      }
+
       for (i = 0; i < subObjects.length; ++i) {
         stdArgs = resourceFactory.standardiseArgs(subObjects[i]);
 
         resourceFactory.storeSubDoc(obj, stdArgs, args);
+        if (con) {
+          con.debug('Stored canvass subobj[' + i + ']: ' + subObjects[i].objId);
+        }
       }
     }
 
-    con.debug('Store canvass response: ' + obj);
+    if (con) {
+      con.debug('Store canvass response: ' + obj);
+    }
 
     // just basic storage args as subdocs have been processed above
     var storeArgs = resourceFactory.copyBasicStorageArgs(args, {
@@ -275,7 +294,9 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
           }
         });
 
-        con.debug('linkAddressAndResults: ' + addresses.length + ' ' + results.length);
+        if (con) {
+          con.debug('linkAddressAndResults: addresses ' + addresses.length + ' results ' + results.length);
+        }
 
         if (addresses.length && results.length) {
           results.forEach(function (result) {

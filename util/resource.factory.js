@@ -103,7 +103,12 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     { name: 'flags', test: angular.isNumber, dflt: storeFactory.NOFLAG },
     { name: 'next', test: angular.isFunction, dflt: undefined },
     { name: 'custom', test: angular.isObject, dflt: {} }
-  ];
+  ],
+  con;  // console logger
+
+  if (consoleService.isEnabled(factory.NAME)) {
+    con = consoleService.getLogger(factory.NAME);
+  }
 
   // add additional methods to factory
   extendFactory(factory, standardFactoryFactory);
@@ -308,6 +313,9 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
         } else {
           resp = factory.initObj(idArray[0], stdArgs.flags);
         }
+      }
+      if (con) {
+        con.debug('storeServerRsp: ' + idArray[0]);
       }
       // if multiple objId's secondary ids are set to copies
       for (i = 1; i < idArray.length; ++i) {

@@ -10,9 +10,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-standardFactoryFactory.$inject = ['$resource', '$injector', 'baseURL', 'storeFactory', 'miscUtilFactory', 'resourceListFactory', 'filterFactory', 'queryFactory'];
+standardFactoryFactory.$inject = ['$resource', '$injector', '$q', 'baseURL', 'storeFactory', 'miscUtilFactory', 'resourceListFactory', 'filterFactory', 'queryFactory'];
 
-function standardFactoryFactory ($resource, $injector, baseURL, storeFactory, miscUtilFactory, resourceListFactory, filterFactory, queryFactory) {
+function standardFactoryFactory($resource, $injector, $q, baseURL, storeFactory, miscUtilFactory, resourceListFactory, filterFactory, queryFactory) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -295,6 +295,62 @@ function standardFactoryFactory ($resource, $injector, baseURL, storeFactory, mi
    */
   StandardFactory.prototype.delete = function (name, params, postData, onSuccess, onFailure, asPromise) {
     return this.resourceMethod('delete', name, params, postData, onSuccess, onFailure, asPromise);
+  };
+
+  /**
+   * Store a response from the server asynchronously
+   * @param {string}   name             Name of factory
+   * @param {object}   resourceFactory  Reference to resourceFactory (required in order to prevent circular dependency)
+   * @param {object}   obj              Object to save
+   * @param {object}   args             process arguments object, @see resourceFactory.storeServerRsp() for details
+   * @param {object}   con              consoleService object to log output
+   * @param {string}   label            Label to use in log output
+   * @return {object}   Canvass object
+   */
+  StandardFactory.prototype.storeRspObjectAsync = function (name, resourceFactory, obj, args, con, label) {
+
+    var subObjects, i, ll, promises,
+      saveMain = function (result) {
+
+        if (con) {
+          con.debug('Store ' + label + ' response: ' + obj);
+        }
+
+        // just basic storage args as subdocs have been processed above
+        var storeArgs = resourceFactory.copyBasicStorageArgs(args, {
+          factory: $injector.get(name)
+        });
+
+        resourceFactory.storeServerRsp(obj, storeArgs);
+      };
+
+    // store sub objects first
+    if (args.subObj) {
+      subObjects = miscUtilFactory.toArray(args.subObj);
+      promises = [];
+
+      if (con) {
+        con.debug('Store ' + label + ' subobjs: ' + subObjects.length);
+      }
+
+      for (i = 0, ll = subObjects.length; i < ll; ++i) {
+        promises.push(
+          $q(function (resolve, reject) {
+            resourceFactory.storeSubDoc(obj, subObjects[i], args);
+            if (con) {
+              con.debug('Stored ' + label + ' subobj[' + i + ']: ' + subObjects[i].objId);
+            }
+            resolve();
+          })
+        );
+      }
+    }
+
+    if (promises) {
+      $q.all(promises).then(saveMain);
+    } else {
+      saveMain();
+    }
   };
 
   /**

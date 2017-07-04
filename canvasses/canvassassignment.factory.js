@@ -57,9 +57,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-canvassAssignmentFactory.$inject = ['$injector', '$filter', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory', 'canvassFactory',
+canvassAssignmentFactory.$inject = ['$injector', '$filter', '$q', 'baseURL', 'storeFactory', 'resourceFactory', 'compareFactory', 'filterFactory', 'miscUtilFactory', 'surveyFactory', 'canvassFactory',
   'addressFactory', 'electionFactory', 'userFactory', 'SCHEMA_CONST', 'CANVASSASSIGN_SCHEMA', 'consoleService', 'undoFactory'];
-function canvassAssignmentFactory($injector, $filter, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, surveyFactory, canvassFactory,
+function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory, resourceFactory, compareFactory, filterFactory, miscUtilFactory, surveyFactory, canvassFactory,
   addressFactory, electionFactory, userFactory, SCHEMA_CONST, CANVASSASSIGN_SCHEMA, consoleService, undoFactory) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
@@ -86,14 +86,19 @@ function canvassAssignmentFactory($injector, $filter, baseURL, storeFactory, res
       ADDR_CANVSR_ADDRESSLIST: 'addrCanvsrAddressList'        // ResourceList of addresses
 
     },
-    con = consoleService.getLogger(factory.NAME),
     addrCanvsrLinkArgs = [factory.ADDR_CANVSR_LINKCANVASSER, factory.ADDR_CANVSR_LINKADDRESS],
     addrCanvsrCanvsrsArgs = [factory.ADDR_CANVSR_CANVASSERARRAY, factory.ADDR_CANVSR_CANVASSERLIST],
     addrCanvsrAddrsArgs = [factory.ADDR_CANVSR_ADDRESSARRAY, factory.ADDR_CANVSR_ADDRESSLIST],
-    addrCanvsrObjArgs = addrCanvsrLinkArgs.concat(factory.ADDR_CANVSR_ADDRESSARRAY, factory.ADDR_CANVSR_CANVASSERARRAY),
+    addrCanvsrArrayArgs = [factory.ADDR_CANVSR_ADDRESSARRAY, factory.ADDR_CANVSR_CANVASSERARRAY],
+    addrCanvsrObjArgs = addrCanvsrLinkArgs.concat(addrCanvsrArrayArgs),
     addrCanvsrListArgs = [factory.ADDR_CANVSR_CANVASSERLIST, factory.ADDR_CANVSR_ADDRESSLIST],
     addrCanvsrAllArgs = addrCanvsrObjArgs.concat(addrCanvsrListArgs),
-    dfltLabeller;
+    dfltLabeller,
+    con;  // console logger
+
+  if (consoleService.isEnabled(factory.NAME)) {
+    con = consoleService.getLogger(factory.NAME);
+  }
 
   resourceFactory.registerStandardFactory(factory.NAME, {
     storeId: CANVASSASSIGN_SCHEMA.ID_TAG,
@@ -137,7 +142,9 @@ function canvassAssignmentFactory($injector, $filter, baseURL, storeFactory, res
 
     processAddressCanvasserLink(object, stdArgs);
 
-    con.debug('Read canvass assignment rsp object: ' + object);
+    if (con) {
+      con.debug('Read canvass assignment rsp object: ' + object);
+    }
 
     return object;
   }
@@ -204,19 +211,13 @@ function canvassAssignmentFactory($injector, $filter, baseURL, storeFactory, res
   /**
    * Store a canvass assignment response from the server
    * @param {object}   response   Server response
-   * @param {object}   args       process arguments object with following properties
-   *    {string|Array}  objId       id/array of ids of canvass & survey objects to save response data to
-   *    {string|Array}  addrId      id/array of ids of list object(s) to save address data to
-   *    {string|Array}  userId      id/array of ids of list object to save canvasser data to
-   *    {number}        flags       storefactory flags
-   *    {object}        surveyArgs  arguments to process embedded survey sub doc, 
-   *                                @see surveyFactory.readResponse() for details
-   *    {object}        electionArgs arguments to process embedded election sub doc, 
-   *                                @see electionFactory.readResponse() for details
-   *    {function}      next        function to call after processing
+   * @param {object}   args       process arguments object, @see resourceFactory.storeServerRsp() for details
    * @return {object}   Canvass object
    */
   function storeRspObject (obj, args) {
+
+    // async version
+    //factory.storeRspObjectTest(factory.NAME, resourceFactory, obj, args, con, 'canvass assignment');
 
     var subObjects, i, ll;
 
@@ -224,14 +225,21 @@ function canvassAssignmentFactory($injector, $filter, baseURL, storeFactory, res
     if (args.subObj) {
       subObjects = miscUtilFactory.toArray(args.subObj);
 
-      con.debug('Store canvass assignment subobjs: ' + subObjects.length);
+      if (con) {
+        con.debug('Store canvass assignment subobjs: ' + subObjects.length);
+      }
 
       for (i = 0, ll = subObjects.length; i < ll; ++i) {
         resourceFactory.storeSubDoc(obj, subObjects[i], args);
+        if (con) {
+          con.debug('Stored canvass assignment subobj[' + i + ']: ' + subObjects[i].objId);
+        }
       }
     }
 
-    con.debug('Store canvass assignment response: ' + obj);
+    if (con) {
+      con.debug('Store canvass assignment response: ' + obj);
+    }
 
     // just basic storage args as subdocs have been processed above
     var storeArgs = resourceFactory.copyBasicStorageArgs(args, {
@@ -276,130 +284,169 @@ function canvassAssignmentFactory($injector, $filter, baseURL, storeFactory, res
    * @param   {function} labeller Function to generate label classes
    */
   function linkAddressAndCanvasser(linkArg, response, labeller) {
+    var linkCanvasser,    // canvasser whose allocation it is
+      linkAddressList,    // canvasser's address allocation 
+      linkCanvasserListArray,   // array of array's of canvassers
+      linkAddressListArray;     // array of array's of addresses
+
     if (linkArg) {
-      var link = countProperties(addrCanvsrLinkArgs, linkArg),
-        canvsrs = countProperties(addrCanvsrCanvsrsArgs, linkArg),
-        addrs = countProperties(addrCanvsrAddrsArgs, linkArg),
-        lists = {},
-        obj,
-        map,
-        addressToLink;
-      
-      // check have all the args
-      if ((link === addrCanvsrLinkArgs.length) && (canvsrs >= 1) && (addrs >= 1)) {
-        // have all link args and, canvassers & addresses to connect
-        // response may be an array depending on query params
-        miscUtilFactory.toArray(response).forEach(function (canvasserAssignment) {
+      // response may be an array depending on query params
+      miscUtilFactory.toArray(response).forEach(function (canvasserAssignment) {
 
-          // get the objects nd put into arrays
-          addrCanvsrObjArgs.forEach(function (flag) {
-            lists[flag] = [];
-            miscUtilFactory.toArray(linkArg[flag]).forEach(function (objArg) {
-              obj = resourceFactory.getObjectInfo(canvasserAssignment, objArg).object;
-              if (obj) {
-                switch (flag) {
-                  case factory.ADDR_CANVSR_LINKCANVASSER:
-                  case factory.ADDR_CANVSR_LINKADDRESS:
-                    // save link canvasser & their allocated addresses as it
-                    lists[flag].push(obj);
-                    break;
-                  default:
-                    // convert to map for easy lookup
-                    map = miscUtilFactory.arrayToMap(obj, '_id');
-                    lists[flag].push(map);
-                    break;
-                }
-              }
-              //lists[flag].push(resourceFactory.getObjectInfo(canvasserAssignment, objArg).object);
-            });
-          });
-          // get the lists
-          addrCanvsrListArgs.forEach(function (flag) {
-            lists[flag] = [];
-            miscUtilFactory.toArray(linkArg[flag]).forEach(function (listArg) {
-              miscUtilFactory.toArray(listArg.objId).forEach(function (objId) {
-                obj = listArg.factory.getList(objId);
-                if (obj) {
-                  map = miscUtilFactory.arrayToMap(obj, '_id');
-                  lists[flag].push(map);
-                }
+        var artifacts = getLinkAddressAndCanvasserArtifacts(linkArg, canvasserAssignment);
+        if (artifacts) {
+          // get canvasser arrays & resource lists
+          linkCanvasserListArray = getPropertiesWithLength(addrCanvsrCanvsrsArgs, artifacts);
+          // get address arrays & resource lists
+          linkAddressListArray = getPropertiesWithLength(addrCanvsrAddrsArgs, artifacts);
 
-                //lists[flag].push(listArg.factory.getList(objId));
+          // have all the info i.e. canvasser whose alloc it is and the allocations in the canvass subdoc
+          linkCanvasser = getFirstOfOne(artifacts[factory.ADDR_CANVSR_LINKCANVASSER], // array of link canvasser
+            'Multiple link canvassers specified', 'Invalid link canvasser');
+          if (con) {
+            con.debug('Link canvasser: ' + JSON.stringify(linkCanvasser));
+          }
+
+          linkAddressList = getFirstOfOne(artifacts[factory.ADDR_CANVSR_LINKADDRESS],  // array of link canvasser's addresses
+            'Multiple link addresses specified', 'Invalid link canvasser address list');
+
+          // find canvasser whose allocation it is in list of assigned canvassers
+          searchMap(linkCanvasserListArray, linkCanvasser._id, function (canvasserToLink) {
+
+            if (con) {
+              con.debug('Canvasser to link: ' + JSON.stringify(canvasserToLink));
+            }
+
+            // save id of canvasser's allocation record
+            canvasserToLink.allocId = canvasserAssignment._id;
+
+            // find the allocated address in the list of assigned addresses
+            linkAddressList.forEach(function (linkAddress) {
+              // find address to link in list of addresses
+              searchMap(linkAddressListArray, linkAddress._id, function (addressToLink) {
+
+                if (con) {
+                  con.debug('Address to link: ' + JSON.stringify(addressToLink));
+                }
+                linkCanvasserToAddr(canvasserToLink, addressToLink, labeller);
               });
             });
           });
-
-          // check have all the data
-          link = countPropertiesLength(addrCanvsrLinkArgs, linkArg);
-          canvsrs = countPropertiesLength(addrCanvsrCanvsrsArgs, linkArg);
-          addrs = countPropertiesLength(addrCanvsrAddrsArgs, linkArg);
-          if ((link === addrCanvsrLinkArgs.length) && (canvsrs >= 1) && (addrs >= 1)) {
-            // have all the info i.e. canvasser whose alloc it is and the allocations in the canvass subdoc
-            var canvasserToLink,
-              linkCanvasserData = lists[factory.ADDR_CANVSR_LINKCANVASSER], // array of link canvasser
-              linkAddressData = lists[factory.ADDR_CANVSR_LINKADDRESS],     // array of link canvasser's addresses
-              linkCanvasserListArray = [],   // array of array's of canvassers
-              linkAddressListArray = [];     // array of array's of addresses
-            if (linkCanvasserData.length > 1) {
-              throw new Error('Multiple link canvassers specified');
-            }
-            if (linkAddressData.length > 1) {
-              throw new Error('Multiple link addresses specified');
-            }
-
-            addrCanvsrCanvsrsArgs.forEach(function (canvsrs) {
-              if (lists[canvsrs].length) {
-                linkCanvasserListArray.push(lists[canvsrs]);
-              }
-            });
-            addrCanvsrAddrsArgs.forEach(function (addrs) {
-              if (lists[addrs].length) {
-                linkAddressListArray.push(lists[addrs]);
-              }
-            });
-
-            linkCanvasserData.forEach(function (linkCanvasser) {
-              con.debug('Link canvasser: ' + JSON.stringify(linkCanvasser));
-              if (linkCanvasser) {
-                // find canvasser whose allocation it is in list of assigned canvassers
-                linkCanvasserListArray.forEach(function (linkCanvasserListData) {
-                  linkCanvasserListData.forEach(function (canvasserList) {
-                    var canvsrFind;
-                    canvasserToLink = canvasserList[linkCanvasser._id];
-                    if (canvasserToLink) {
-                      con.debug('Canvasser to link: ' + JSON.stringify(canvasserToLink));
-
-                      // save id of canvasser's allocation record
-                      canvasserToLink.allocId = canvasserAssignment._id;
-
-                      // find the allocated address in the list of assigned addresses
-                      linkAddressData.forEach(function (linkAddressList) {
-                        con.debug('Link address list: ' + JSON.stringify(linkAddressList));
-                        if (linkAddressList) {
-                          linkAddressList.forEach(function (linkAddress) {
-                            // find address to link in list of addresses
-                            linkAddressListArray.forEach(function (linkAddressListData) {
-                              linkAddressListData.forEach(function (addressList) {
-                                addressToLink = addressList[linkAddress._id];
-                                con.debug('Address to link: ' + JSON.stringify(addressToLink));
-                                if (addressToLink) {
-                                  linkCanvasserToAddr(canvasserToLink, addressToLink, labeller);
-                                }
-                              });
-                            });
-                          });
-                        }
-                      });
-                    }
-                  });
-                });
-              }
-            });
-          }
-        });
-      }
+        }
+      });
     }
   }
+
+  /**
+    * Get the link addresses & canvasser
+    * @param {object} linkArg             Link arguments
+    * @param {object} canvasserAssignment Assignment response from server
+    * @return {object}  Artifacts object
+    */
+  function getLinkAddressAndCanvasserArtifacts(linkArg, canvasserAssignment) {
+    var artifacts;
+    if (linkArg) {
+      var link = countProperties(addrCanvsrLinkArgs, linkArg),      // count number of link args
+        canvsrs = countProperties(addrCanvsrCanvsrsArgs, linkArg),  // count number of canvasser args
+        addrs = countProperties(addrCanvsrAddrsArgs, linkArg);      // count number of address args
+
+      // check have all the args
+      if ((link === addrCanvsrLinkArgs.length) && (canvsrs >= 1) && (addrs >= 1)) {
+        // have all link args and, canvassers & addresses to connect args
+
+        // check have all the data, i.e. array lengths > 0
+        link = countPropertiesLength(addrCanvsrLinkArgs, linkArg);
+        canvsrs = countPropertiesLength(addrCanvsrCanvsrsArgs, linkArg);
+        addrs = countPropertiesLength(addrCanvsrAddrsArgs, linkArg);
+        if ((link === addrCanvsrLinkArgs.length) && (canvsrs >= 1) && (addrs >= 1)) {
+          // have everything
+          var addToArtifacts = function (obj, prop) {
+            if (obj) {
+              if (!artifacts[prop]) {
+                artifacts[prop] = [];
+              }
+              artifacts[prop].push(obj);
+            }
+          },
+          addIdMap = function (obj, prop) {
+            if (obj) {
+              addToArtifacts(miscUtilFactory.arrayToMap(obj, '_id'), prop);
+            }
+          };
+
+          artifacts = {};
+
+          // get the link args and put into result
+          processPropertiesFromArgs(addrCanvsrLinkArgs, linkArg, function (objId, prop, arg) {
+            // save link canvasser & their allocated addresses as it
+            addToArtifacts(resourceFactory.getObjectInfo(canvasserAssignment, arg).object, prop);
+          });
+          // get the link arrays and put into result
+          processPropertiesFromArgs(addrCanvsrArrayArgs, linkArg, function (objId, prop, arg) {
+            // convert to map for easy lookup
+            addIdMap(resourceFactory.getObjectInfo(canvasserAssignment, arg).object, prop);
+          });
+          // get the lists & put into result
+          processPropertiesFromArgs(addrCanvsrListArgs, linkArg, function (objId, prop, arg) {
+            // convert to map for easy lookup
+            addIdMap(arg.factory.getList(objId), prop);
+          });
+        }
+      }
+    }
+    return artifacts;
+  }
+
+  function processPropertiesFromArgs(properties, linkArg, processFunc) {
+    properties.forEach(function (prop) {
+      miscUtilFactory.toArray(linkArg[prop]).forEach(function (arg) {
+        miscUtilFactory.toArray(arg.objId).forEach(function (objId) {
+          processFunc(objId, prop, arg);
+        });
+      });
+    });
+  }
+
+
+  function searchMap(arrayOfArrayOfMap, id, processFunc) {
+    var result;
+
+    arrayOfArrayOfMap.forEach(function (arrayOfMap) {
+      arrayOfMap.forEach(function (map) {
+        result = map[id];
+        if (result) {
+          processFunc(result);
+        }
+      });
+    });
+  }
+
+  function getFirstOfOne(array, tooManyErr, invalidErr) {
+    var result;
+    if (array.length > 1) {
+      throw new Error(tooManyErr);
+    } else {
+      // should only be linking 1 canvasser
+      result = array[0];
+      if (!result) {
+        throw new Error(invalidErr);
+      }
+    }
+    return result;
+  }
+
+  function getPropertiesWithLength(properties, arrayOfArrays) {
+    var result = [];
+    properties.forEach(function (prop) {
+      if (arrayOfArrays[prop] && arrayOfArrays[prop].length) {
+        result.push(arrayOfArrays[prop]);
+      }
+    });
+    return result;
+  }
+
+
+
 
   /**
    * Count the number of specified properties in an object
