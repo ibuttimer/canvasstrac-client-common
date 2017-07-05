@@ -231,7 +231,7 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
     // async version
     //factory.storeRspObjectTest(factory.NAME, resourceFactory, obj, args, con, 'canvass');
 
-    var subObjects, i, stdArgs;
+    var subObjects, i;
 
     // store sub objects first
     if (args.subObj) {
@@ -242,9 +242,7 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
       }
 
       for (i = 0; i < subObjects.length; ++i) {
-        stdArgs = resourceFactory.standardiseArgs(subObjects[i]);
-
-        resourceFactory.storeSubDoc(obj, stdArgs, args);
+        resourceFactory.storeSubDoc(obj, subObjects[i], args);
         if (con) {
           con.debug('Stored canvass subobj[' + i + ']: ' + subObjects[i].objId);
         }

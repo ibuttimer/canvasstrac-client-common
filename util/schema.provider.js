@@ -699,7 +699,7 @@ angular.module('ct.clientCommon')
      * Schema object constructor
      * @param {string} name       Schema name
      * @param {Array}  modelProps Model properties array
-     * @param {Array}  ids        ids for model properties
+     * @param {object}  ids       ids for schema fields
      * @param {string} tag        id tag
      */
     function Schema (SCHEMA_CONST, RESOURCE_CONST, name, modelProps, ids, tag) {
@@ -884,6 +884,18 @@ angular.module('ct.clientCommon')
         }
       }
       return result;
+    };
+
+    /**
+     * Return a schema link object. 
+     * @param   {number} id    Field id
+     * @returns {object} schema link
+     */
+    Schema.prototype.getSchemaLink = function (id) {
+      return {
+        schema: this,
+        schemaId: id
+      };
     };
 
     /**

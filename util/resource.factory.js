@@ -6,7 +6,7 @@ angular.module('ct.clientCommon')
 
   .constant('RESOURCE_CONST', (function () {
     var model = ['path', 'type', 'storage', 'factory'],   // related to ModelProp
-      schemaModel = ['schema', 'schemaId'].concat(model), // related to Schema & ModelProp
+      schemaModel = ['schema', 'schemaId', 'resource'].concat(model), // related to Schema & ModelProp
       basicStore = ['objId', 'flags', 'storage', 'next'],
       stdArgs = schemaModel.concat(basicStore, ['subObj', 'customArgs']),
       processRead = 0x01,   // process argument during read
@@ -79,7 +79,6 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     storeSubDoc: storeSubDoc,
     standardiseArgs: standardiseArgs,
     getStandardArgsObject: getStandardArgsObject,
-    checkStandardArgsObjectArgs: checkStandardArgsObjectArgs,
     checkArgs: checkArgs,
     arrayiseArguments: arrayiseArguments,
     findInStandardArgs: findInStandardArgs,
@@ -96,13 +95,14 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
   },
   modelArgsMap = {},
   StandardArgsInfo = [
-    // arg info for checkStandardArgsObjectArgs()
+    // arg info for getStandardArgsObject()
     { name: 'factory', test: angular.isString, dflt: undefined },
+    { name: 'resource', test: angular.isString, dflt: undefined },
     { name: 'subObj', test: angular.isArray, dflt: undefined },
     { name: 'schema', test: angular.isObject, dflt: {} },
     { name: 'flags', test: angular.isNumber, dflt: storeFactory.NOFLAG },
     { name: 'next', test: angular.isFunction, dflt: undefined },
-    { name: 'custom', test: angular.isObject, dflt: {} }
+    { name: 'customArgs', test: angular.isObject, dflt: {} }
   ],
   con;  // console logger
 
@@ -453,54 +453,40 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
 
   /**
    * Return a standard args object
-   * @param {string|array} objId  Id(s) to use for storage
-   * @param {string} factory      Factory name
-   * @param {array} subObj        Sub-objects
-   * @param {object} schema       Schema object
-   * @param {number} flags        storeFactory flags
-   * @param {function} next       Function to call following completion
-   * @param {object} custom       Custom properties
-   * @returns {object} Standard args object
+   * @param {string|array} objId    Id(s) to use for storage
+   * @param {string}       factory  Factory name
+   * @param {string}       resource Name of factory resource to access resources on server
+   * @param {array}        subObj   Sub-objects
+   * @param {object}       schema   Schema object
+   * @param {number}       flags    storeFactory flags
+   * @param {function}     next     Function to call following completion
+   * @param {object}       customArgs   Custom properties
+   * @returns {object}       Standard args object
+   *                                  
+   * NOTE 1: make sure to update StandardArgsInfo on any change to function prototype.
+   *      2: the objIdargument must be passed
    */
-  function getStandardArgsObject(objId, factory, subObj, schema, flags, next, custom) {
+  function getStandardArgsObject(objId, factory, resource, subObj, schema, flags, next, customArgs) {
 
     var args = intCheckStandardArgsObjectArgs(arrayiseArguments(arguments, 1)); // exclude objId
     return {
       objId: objId,
       factory: args.factory,
+      resource: args.resource,
       schema: args.schema.schema,
       schemaId: args.schema.schemaId,
       //type/path/storage/factory: can be retrieved using schema & schemaId
       subObj: args.subObj,
       flags: args.flags,
       next: args.next,
-      customArgs: args.custom
+      customArgs: args.customArgs
     };
-  }
-
-  /**
-   * Check arguemnts for getRspOptionsObject() making sure args are correctly positioned
-   * @param {string} factory      Factory name
-   * @param {array} subObj        Sub-objects
-   * @param {object} schema       Schema object
-   * @param {number} flags        storeFactory flags
-   * @param {function} next       Function to call following completion
-   * @param {object} custom       Custom properties
-   * @returns {object} args object
-   * 
-   * NOTE 1: make sure to update StandardArgsInfo on any change to function prototype.
-   *      2: this function is not for internal use, use intCheckStandardArgsObjectArgs() within this factory
-   */
-  function checkStandardArgsObjectArgs(factory, subObj, schema, flags, next, custom) {
-    return intCheckStandardArgsObjectArgs(arguments);
   }
 
   /**
    * Check arguemnts for getRspOptionsObject() making sure args are correctly positioned
    * @param {object}  funcArguments Argument object for original function
    * @return {object} checked argument object
-   * 
-   * NOTE: Interval version of checkStandardArgsObjectArgs()
    */
   function intCheckStandardArgsObjectArgs(funcArguments) {
     return checkArgs(StandardArgsInfo, funcArguments);
@@ -526,9 +512,11 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
         if (args.length < ll) { // num of args < expected
           args.splice(i, 0, arg.dflt);  // insert argument default value
         } else {
-          // right shift arguments
-          for (var j = args.length - 1; j > i; --j) {
-            args[j] = args[j - 1];
+          if (args[i] !== undefined) {
+            // right shift arguments
+            for (var j = args.length - 1; j > i; --j) {
+              args[j] = args[j - 1];
+            }
           }
           args[i] = arg.dflt;   // set argument to default value
         }
