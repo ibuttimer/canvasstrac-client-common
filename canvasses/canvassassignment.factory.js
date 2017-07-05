@@ -310,28 +310,30 @@ function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory,
           linkAddressList = getFirstOfOne(artifacts[factory.ADDR_CANVSR_LINKADDRESS],  // array of link canvasser's addresses
             'Multiple link addresses specified', 'Invalid link canvasser address list');
 
-          // find canvasser whose allocation it is in list of assigned canvassers
-          searchMap(linkCanvasserListArray, linkCanvasser._id, function (canvasserToLink) {
+          if (linkCanvasser && linkAddressList) {
+            // find canvasser whose allocation it is in list of assigned canvassers
+            searchMap(linkCanvasserListArray, linkCanvasser._id, function (canvasserToLink) {
 
-            if (con) {
-              con.debug('Canvasser to link: ' + JSON.stringify(canvasserToLink));
-            }
+              if (con) {
+                con.debug('Canvasser to link: ' + JSON.stringify(canvasserToLink));
+              }
 
-            // save id of canvasser's allocation record
-            canvasserToLink.allocId = canvasserAssignment._id;
+              // save id of canvasser's allocation record
+              canvasserToLink.allocId = canvasserAssignment._id;
 
-            // find the allocated address in the list of assigned addresses
-            linkAddressList.forEach(function (linkAddress) {
-              // find address to link in list of addresses
-              searchMap(linkAddressListArray, linkAddress._id, function (addressToLink) {
+              // find the allocated address in the list of assigned addresses
+              linkAddressList.forEach(function (linkAddress) {
+                // find address to link in list of addresses
+                searchMap(linkAddressListArray, linkAddress._id, function (addressToLink) {
 
-                if (con) {
-                  con.debug('Address to link: ' + JSON.stringify(addressToLink));
-                }
-                linkCanvasserToAddr(canvasserToLink, addressToLink, labeller);
+                  if (con) {
+                    con.debug('Address to link: ' + JSON.stringify(addressToLink));
+                  }
+                  linkCanvasserToAddr(canvasserToLink, addressToLink, labeller);
+                });
               });
             });
-          });
+          }
         }
       });
     }
@@ -400,7 +402,13 @@ function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory,
   function processPropertiesFromArgs(properties, linkArg, processFunc) {
     properties.forEach(function (prop) {
       miscUtilFactory.toArray(linkArg[prop]).forEach(function (arg) {
-        miscUtilFactory.toArray(arg.objId).forEach(function (objId) {
+        var objId = arg.objId;
+        // if object is being saved it'll be a string or array of strings
+        if (!objId || (Array.isArray(objId) && !objId.length)) {
+          // object is not being saved
+          objId = 'nosave'; // dummy objId
+        }
+        miscUtilFactory.toArray(objId).forEach(function (objId) {
           processFunc(objId, prop, arg);
         });
       });
@@ -423,13 +431,15 @@ function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory,
 
   function getFirstOfOne(array, tooManyErr, invalidErr) {
     var result;
-    if (array.length > 1) {
-      throw new Error(tooManyErr);
-    } else {
-      // should only be linking 1 canvasser
-      result = array[0];
-      if (!result) {
-        throw new Error(invalidErr);
+    if (array) {
+      if (array.length > 1) {
+        throw new Error(tooManyErr);
+      } else {
+        // should only be linking 1 canvasser
+        result = array[0];
+        if (!result) {
+          throw new Error(invalidErr);
+        }
       }
     }
     return result;
