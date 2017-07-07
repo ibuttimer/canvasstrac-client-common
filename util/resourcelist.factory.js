@@ -289,7 +289,7 @@ function resourceListFactory ($filter, $injector, storeFactory, miscUtilFactory,
    * Sort a ResourceList
    * @param   {object}   resList         List to sort
    * @param   {function} getSortFunction Function to return  sort function
-   * @param   {object}   sortOptions     List of possible sort option
+   * @param   {array}   sortOptions     List of possible sort option
    * @param   {object}   sortByValue     Key to sort by
    * @returns {Array}    sorted list
    */
@@ -298,10 +298,13 @@ function resourceListFactory ($filter, $injector, storeFactory, miscUtilFactory,
       sortFxn;
     
     if (resList && resList.factory) {
-      if (!getSortFunction) {
+      if (!angular.isFunction(getSortFunction)) {
+        sortByValue = sortOptions;
+        sortOptions = getSortFunction;
         getSortFunction = resList.factory.getSortFunction;
       }
-      if (!sortOptions) {
+      if (!angular.isArray(sortOptions)) {
+        sortByValue = sortOptions;
         sortOptions = resList.sortOptions;
       }
       if (!sortByValue) {
@@ -715,28 +718,28 @@ function resourceListFactory ($filter, $injector, storeFactory, miscUtilFactory,
 
   /**
    * Apply a filter to the list, and update the associated pager if applicable
-   * @param   {object} filter Filter object (not ResourceFilter) to use or preset filter used if undefined
+   * @param {object}   filterBy   Filter object to use (not ResourceFilter) or preset filter used if undefined
    * @returns {object} this object to facilitate chaining
    */
-  ResourceList.prototype.applyFilter = function (filter) {
-    if (typeof filter === 'undefined') {
+  ResourceList.prototype.applyFilter = function (filterBy) {
+    if (typeof filterBy === 'undefined') {
       // use preset filter object
       if (this.filter) {
-        filter = this.filter.filterBy;
+        filterBy = this.filter.filterBy;
       }
     }
 
-    filter = filter || {};
+    filterBy = filterBy || {};
     
-    this.filter.lastFilter = filter;
+    this.filter.lastFilter = filterBy;
 
-    if (!miscUtilFactory.isEmpty(filter) || !this.filter.allowBlank) {
+    if (!miscUtilFactory.isEmpty(filterBy) || !this.filter.allowBlank) {
       if (this.filter.customFunction) {
         // use the specific filter function to set the filtered list
-        this.filter.customFunction(this, filter);
+        this.filter.customFunction(this, filterBy);
       } else {
         // use the filter object
-        this.filterList = $filter('filter')(this.list, filter);
+        this.filterList = $filter('filter')(this.list, filterBy);
       }
     } else {
       this.filterList = this.list;

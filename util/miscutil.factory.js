@@ -165,8 +165,8 @@ function miscUtilFactory () {
    */
   function readSafe (object, path) {
     var read = object;
-    if (object && path) {
-      for (var i = 0; (i < path.length) && !isNullOrUndefined(read); ++i) {
+    if (object && angular.isArray(path)) {
+      for (var i = 0, ll = path.length; (i < ll) && !isNullOrUndefined(read); ++i) {
         read = read[path[i]];
       }
     }

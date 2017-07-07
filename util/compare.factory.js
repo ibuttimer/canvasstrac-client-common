@@ -112,13 +112,45 @@ function compareFactory ($injector, consoleService, miscUtilFactory, SCHEMA_CONS
   }
 
   /**
-   * Compare dates
-   * @param {boolean}  a   First date to compare
-   * @param {boolean}  b   Second date to compare
-   * @returns {number} < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   * Convert to date
+   * @param {string} value Date string to convert
+   * @returns {object}  Date object
    */
-  function compareDate (a, b) {
-    return basicCompare(a, b);
+  function toDate (value) {
+    if (!angular.isDate(value)) {
+      value = new Date(value);
+    }
+    return value;
+  }
+
+  /**
+   * Compare dates
+   * @param {object|string} a     First date/date string to compare
+   * @param {object|string} b     Second date/date string to compare
+   * @param {string}        order '+' ascending sort (default) i.e. older dates first
+   *                              or '-' descending sort i.e. newer dates first
+   * @returns {number}        < 0 if a comes before b, 0 if no difference, and > 0 if b comes before a
+   */
+  function compareDate (a, b, order) {
+    var timeA = toDate(a).getTime(),
+      timeB = toDate(b).getTime(),
+      result;
+    if (isFinite(timeA) && isFinite(timeB)) {
+      result = timeA - timeB; // default, ascending result
+      if (order === '-') {
+        result = -result;
+      }
+    } else {
+      // valid time before invalid
+      if (timeA === timeB) {
+        result = 0;
+      } else if (isFinite(timeA)) {
+        result = -1;
+      } else {
+        result = 1;
+      }
+    }
+    return result;
   }
 
   /**

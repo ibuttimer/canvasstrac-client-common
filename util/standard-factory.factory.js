@@ -10,9 +10,9 @@ angular.module('ct.clientCommon')
   https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y091
 */
 
-standardFactoryFactory.$inject = ['$resource', '$injector', '$q', 'baseURL', 'storeFactory', 'miscUtilFactory', 'resourceListFactory', 'filterFactory', 'queryFactory'];
+standardFactoryFactory.$inject = ['$resource', '$injector', '$q', 'baseURL', 'storeFactory', 'miscUtilFactory', 'resourceListFactory', 'filterFactory', 'queryFactory', 'SCHEMA_CONST'];
 
-function standardFactoryFactory($resource, $injector, $q, baseURL, storeFactory, miscUtilFactory, resourceListFactory, filterFactory, queryFactory) {
+function standardFactoryFactory($resource, $injector, $q, baseURL, storeFactory, miscUtilFactory, resourceListFactory, filterFactory, queryFactory, SCHEMA_CONST) {
 
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
@@ -552,21 +552,21 @@ function standardFactoryFactory($resource, $injector, $q, baseURL, storeFactory,
   /**
    * Generate a filtered list
    * @param {object}   reslist    ResourceList object to filter
-   * @param {object}   filter     Filter object to use (not ResourceFilter)
+   * @param {object}   filterBy   Filter object to use (not ResourceFilter)
    * @param {function} xtraFilter Function to provide additional filtering
    * @returns {Array}  filtered list
    */
-  StandardFactory.prototype.getFilteredList = function (reslist, filter, xtraFilter) {
-    return filterFactory.getFilteredList('filterSchema', reslist, filter, xtraFilter);
+  StandardFactory.prototype.getFilteredList = function (reslist, filterBy, xtraFilter) {
+    return filterFactory.getFilteredList('filterSchema', reslist, filterBy, xtraFilter);
   };
   
   /**
    * Address-specific filter function
-   * @param {object} reslist ResourceList object
-   * @param {object} filter  Filter object to use (not ResourceFilter)
+   * @param {object}   reslist    ResourceList object
+   * @param {object}   filterBy   Filter object to use (not ResourceFilter)
    */
-  StandardFactory.prototype.filterFunction = function (reslist, filter) {
-    reslist.filterList = reslist.factory.getFilteredList(reslist, filter);
+  StandardFactory.prototype.filterFunction = function (reslist, filterBy, xtraFilter) {
+    reslist.filterList = reslist.factory.getFilteredList(reslist, filterBy);
   };
 
   /**
@@ -657,6 +657,26 @@ function standardFactoryFactory($resource, $injector, $q, baseURL, storeFactory,
   StandardFactory.prototype.getSortOptions = function (thisArg) {
     thisArg = thisArg || this;
     return thisArg.sortOptions;
+  };
+
+  /**
+   * Return a sort options for this factory
+   * @param {number} index   Field index
+   * @param {string} sortKey Sort key; SCHEMA_CONST.SORT_ASC or SCHEMA_CONST.SORT_DESC
+   * @return {object} Sort option
+  */
+  StandardFactory.prototype.getSortOption = function (index, sortKey, thisArg) {
+    thisArg = thisArg || this;
+    var sortObj,
+      value = thisArg.schema.getField(index);
+
+    if (value) {
+      value = SCHEMA_CONST.MAKE_SORT_OPTION_VALUE(sortKey, value.dialog);
+      sortObj = thisArg.sortOptions.find(function(option) {
+        return (option.value === value);
+      });
+    }
+    return sortObj;
   };
 
   /**

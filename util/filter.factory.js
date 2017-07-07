@@ -171,7 +171,8 @@ function filterFactory ($filter, $injector, miscUtilFactory, consoleService, SCH
     NAME: 'filterFactory',
     newResourceFilter: newResourceFilter,
     getFilteredArray: getFilteredArray,
-    getFilteredList: getFilteredList
+    getFilteredList: getFilteredList,
+    filterArray: filterArray
   };
   
 //  return factory;
@@ -231,12 +232,33 @@ function filterFactory ($filter, $injector, miscUtilFactory, consoleService, SCH
    * Generate a filtered list
    * @param {string}   filterName Name of filter to apply
    * @param {object}   reslist    ResourceList object to filter
-   * @param {object}   filterBy     Filter object to use (not ResourceFilter)
+   * @param {object}   filterBy   Filter object to use (not ResourceFilter)
    * @param {function} xtraFilter Function to provide additional filtering
    * @returns {Array}    filtered list
    */
   function getFilteredList (filterName, reslist, filterBy, xtraFilter) {
     return getFilteredArray(filterName, reslist.list, reslist.filter.allowBlank, reslist.filter.schema, filterBy, reslist.filter.type, xtraFilter);
+  }
+  
+  /**
+   * Filter an array
+   * @param {Array}    array           Array to filter
+   * @param {function} compareFunction Function that defines the sort order. If omitted, the array is sorted according to each character's Unicode code point value, according to the string conversion of each element.
+   * @param {function} expression      The predicate to be used for selecting items from array.
+   * @param {function} comparator       Comparator which is used in determining if values retrieved using expression (when it is not a function) should be considered a match
+   * @see https://docs.angularjs.org/api/ng/filter/filter
+   * @returns {Array}    New array with filtered values
+   */
+  function filterArray (array, compareFunction , expression, comparator) {
+    var list = array;
+    if (angular.isArray(array)) {
+      // sort list
+      list = array.slice().sort(compareFunction);
+
+      // filter list so only have newest results for each address
+      list = $filter('filter')(list, expression, comparator);
+    }
+    return list;
   }
   
   /**
