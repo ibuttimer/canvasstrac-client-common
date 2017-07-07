@@ -89,7 +89,9 @@ function canvassResultFactory($injector, $filter, baseURL, storeFactory, resourc
       readResponse: readResponse,
       storeRspObject: storeRspObject,
 
-      getSortFunction: getSortFunction
+      getSortFunction: getSortFunction,
+
+      filterResultsLatestPerAddress: filterResultsLatestPerAddress
     },
     con = consoleService.getLogger(factory.NAME);
 
@@ -288,6 +290,32 @@ function canvassResultFactory($injector, $filter, baseURL, storeFactory, resourc
   function compareDate (a, b) {
     return compareFactory.compareDateFields(CANVASSRES_SCHEMA.SCHEMA, CANVASSRES_SCHEMA.CANVASSRES_DATE_IDX, a, b);
   }
+  
+  
+  /**
+   * Filter an array of results to give a list of the latest results for each address
+   * @param   {Array} resArray Result array to filter
+   * @returns {Array} New array containing filtered values
+   */
+  function filterResultsLatestPerAddress (resArray) {
+    var i,
+      filteredList = filterFactory.filterArray(
+        resArray.slice(),
+        function (a, b) {
+          // sort list in descending date order
+          return compareFactory.compareDate(a.updatedAt, b.updatedAt, '-');
+        },                                           
+        function (value, index, array) {
+          // exclude value from filtered list if newer entry already in list
+          var noneNewer = true;
+          for (i = index - 1; (i >= 0) && noneNewer; --i) {
+            noneNewer = (array[i].address._id !== value.address._id);
+          }
+          return noneNewer;
+      });
+    return filteredList;
+  }
+  
   
 }
 

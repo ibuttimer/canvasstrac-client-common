@@ -154,7 +154,8 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
    * @param {object} args       arguments object
    */
   function processAddressResultsLink (response, args) {
-    if (args.linkAddressAndResult) {
+    
+    if (miscUtilFactory.readSafe(args, ['customArgs', 'linkAddressAndResult'])) {
       var stdArgs = resourceFactory.standardiseArgs(args),
         addr = resourceFactory.findAllInStandardArgs(stdArgs, function (arg) {
           return arg[factory.ADDR_RES_LINKADDRESS];
@@ -173,7 +174,7 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
    * @param {object} args       arguments object
    */
   function processQuestionResultsLink (response, args) {
-    if (args.linkQuestionAndResult) {
+    if (miscUtilFactory.readSafe(args, ['customArgs', 'linkQuestionAndResult'])) {
       var stdArgs = resourceFactory.standardiseArgs(args),
         ques = resourceFactory.findAllInStandardArgs(stdArgs, function (arg) {
           return arg[factory.QUES_RES_LINKQUES];
@@ -271,18 +272,17 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
     if (addrArgs && resultArgs) {
       var addresses,
         results,
-        obj,
-        map;
+        filteredList,
+        obj;
 
       miscUtilFactory.toArray(response).forEach(function (rsp) {
-        addresses = []; // array of address maps
+        addresses = []; // array of arrays of addresses
         results = [];   // array of arrays of results
 
         miscUtilFactory.toArray(addrArgs).forEach(function (addrArg) {
           obj = resourceFactory.getObjectInfo(rsp, addrArg).object;
           if (obj) {
-            map = miscUtilFactory.arrayToMap(obj, '_id');
-            addresses.push(map);
+            addresses.push(obj);
           }
         });
         miscUtilFactory.toArray(resultArgs).forEach(function (resArg) {
@@ -297,12 +297,20 @@ function canvassFactory($injector, baseURL, storeFactory, resourceFactory, filte
         }
 
         if (addresses.length && results.length) {
-          results.forEach(function (result) {
-            result.forEach(function (resObj) {
-              addresses.forEach(function (address) {
-                if (address[resObj.address._id]) {  // result address id found in address map
+          results.forEach(function (resArray) {
+            
+            filteredList = canvassResultFactory.filterResultsLatestPerAddress(resArray);
+
+            filteredList.forEach(function (resObj) {
+
+              addresses.forEach(function (addrArray) {
+                var addrObj = addrArray.find(function (entry) {
+                  return (entry._id === resObj.address._id);
+                });
+                if (addrObj) {
                   // link address and canvass result
-                  address.canvassResult = resObj._id;
+                  addrObj.canvassResult = resObj._id;
+                  addrObj.canvassDate = new Date(resObj.updatedAt);
                 }
               });
             });

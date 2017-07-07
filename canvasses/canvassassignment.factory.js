@@ -515,9 +515,9 @@ function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory,
 
     addr.canvasser = canvasser._id;
     if (!canvasser.badge) {
-      canvasser.badge = makeCanvasserBadge(canvasser);
+      angular.extend(canvasser, makeCanvasserBadge(canvasser));
     }
-    addr.badge = canvasser.badge;
+    copyCanvasserBadge(canvasser, addr)
 
     if (!canvasser.labelClass) {
       if (labeller) {
@@ -554,8 +554,31 @@ function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory,
    * @returns {string} badge
    */
   function makeCanvasserBadge (canvasser) {
-    return getFirstLetters(canvasser.person.firstname) +
-            getFirstLetters(canvasser.person.lastname);
+    return {
+      badge: getFirstLetters(canvasser.person.firstname) +
+              getFirstLetters(canvasser.person.lastname),
+      canvasserTip: 'Canvasser: ' + canvasser.person.firstname + ' ' +
+                                      canvasser.person.lastname
+    };
+  }
+  
+  /**
+   * Copy cnavasser badge properties
+   * @param {object} src Source object
+   * @param {object} dst Destination object
+   */
+  function copyCanvasserBadge (src, dst) {
+    dst.badge = src.badge;
+    dst.canvasserTip = src.canvasserTip;
+  }
+  
+  /**
+   * Remove cnavasser badge properties
+   * @param {object} from Object to remove from
+   */
+  function removeCanvasserBadge (from) {
+    delete from.badge;
+    delete from.canvasserTip;
   }
   
   /**
@@ -598,7 +621,7 @@ function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory,
       }
     }
     delete addr.canvasser;
-    delete addr.badge;
+    removeCanvasserBadge(addr);
 
     return undo;
   }
@@ -619,7 +642,7 @@ function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory,
                                   }, addrId);
         if (addr) {
           delete addr.canvasser;
-          delete addr.badge;
+          removeCanvasserBadge(addr);
           
           if (rtnUndo) {
             undo.push(undoFactory.newUndoStep(
