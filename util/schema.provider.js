@@ -226,7 +226,8 @@ angular.module('ct.clientCommon')
   .provider('schema', ['$injector', 'SCHEMA_CONST' , 'RESOURCE_CONST', function ProvideSchema($injector, SCHEMA_CONST, RESOURCE_CONST) {
 
     var modelPropProperties = ['id', 'modelName', 'modelPath', 'factory', 'dfltValue', 'type', 'filterTransform', 'filterTest', 'refSchema', 'refField'],
-      modelPropSchemaProperties = ['factory', 'dfltValue', 'type', 'filterTransform', 'filterTest', 'refSchema', 'refField'],
+      // TODO big overlap between schema fields & ModelProp object, fix
+//      modelPropSchemaProperties = ['factory', 'dfltValue', 'type', 'filterTransform', 'filterTest', 'refSchema', 'refField'],
       schemaFieldArgs = [
         // same arder as Schema.prototype.addField() arguments!
         SCHEMA_CONST.DIALOG_PROP,

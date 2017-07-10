@@ -517,7 +517,7 @@ function canvassAssignmentFactory($injector, $filter, $q, baseURL, storeFactory,
     if (!canvasser.badge) {
       angular.extend(canvasser, makeCanvasserBadge(canvasser));
     }
-    copyCanvasserBadge(canvasser, addr)
+    copyCanvasserBadge(canvasser, addr);
 
     if (!canvasser.labelClass) {
       if (labeller) {
