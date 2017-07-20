@@ -81,7 +81,7 @@ angular.module('ct.clientCommon')
           type: questionTypeIds.QUESTION_RANKING,
           name: 'Ranking',
           showOptions: true,
-          range: getOptionCountArray(1, 10)
+          range: getOptionCountArray(2, 10)
         },
         {
           type: questionTypeIds.QUESTION_QUERY,
