@@ -13,12 +13,13 @@ angular.module('ct.clientCommon')
     fromStore: false,
 
     // access properties
-    votingsys: 0,
-    roles: 0,
-    users: 0,
-    elections: 0,
-    candidates: 0,
-    canvasses: 0,
+    // NOTE: need to match ACCESS.VOTINGSYS etc. from cliemt.module.js
+    votingsysPriv: 0,
+    rolesPriv: 0,
+    usersPriv: 0,
+    electionsPriv: 0,
+    candidatesPriv: 0,
+    canvassesPriv: 0,
 
     // mirroring user model properties
     id: '',
@@ -82,7 +83,8 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
     { chr: 'c', bit: ACCESS.ACCESS_CREATE },
     { chr: 'r', bit: ACCESS.ACCESS_READ },
     { chr: 'u', bit: ACCESS.ACCESS_UPDATE },
-    { chr: 'd', bit: ACCESS.ACCESS_DELETE }
+    { chr: 'd', bit: ACCESS.ACCESS_DELETE },
+    { chr: 'b', bit: ACCESS.ACCESS_BATCH }
   ],
   a1o = [
     { chr: 'a', bit: ACCESS.ACCESS_ALL },
@@ -380,6 +382,9 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
    * @returns {number} Access setting
    */
   function getAccess (menu, group) {
+    /* menu access privileges take the form similar to linux permissions
+      i.e. crudb bits for each group, 
+      e.g. 00100 00010 00001 (0x1041) is all group create, one group read & own group update */
     var access = ACCESS.ACCESS_NONE,
       privileges = menuAccessProperties.find(function (name) {
         return (name === menu);

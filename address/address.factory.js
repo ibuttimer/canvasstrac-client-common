@@ -14,6 +14,7 @@ angular.module('ct.clientCommon')
       schemaProvider.getStringModelPropArgs('town', { field: 'TOWN' }),
       schemaProvider.getStringModelPropArgs('city', { field: 'CITY' }),
       schemaProvider.getStringModelPropArgs('county', { field: 'COUNTY' }),
+      schemaProvider.getStringModelPropArgs('state', { field: 'STATE' }),
       schemaProvider.getStringModelPropArgs('country', { field: 'COUNTRY' }),
       schemaProvider.getStringModelPropArgs('postcode', { field: 'PCODE' }),
       schemaProvider.getStringModelPropArgs('gps', { field: 'GPS' }),
@@ -41,6 +42,8 @@ angular.module('ct.clientCommon')
         schema.addFieldFromModelProp('city', 'City', ids.CITY),
       ADDRESS_COUNTY_IDX = 
         schema.addFieldFromModelProp('county', 'County', ids.COUNTY),
+      ADDRESS_STATE_IDX = 
+        schema.addFieldFromModelProp('state', 'State', ids.STATE),
       ADDRESS_POSTCODE_IDX =
         schema.addFieldFromModelProp('postcode', 'Postcode', ids.PCODE),
       ADDRESS_GPS_IDX =
@@ -48,7 +51,7 @@ angular.module('ct.clientCommon')
 
       // generate list of sort options
       sortOptions = schemaProvider.makeSortList(schema, 
-                      [ADDRESS_ADDR_IDX, ADDRESS_TOWN_IDX, ADDRESS_CITY_IDX, ADDRESS_COUNTY_IDX, ADDRESS_POSTCODE_IDX], 
+                      [ADDRESS_ADDR_IDX, ADDRESS_TOWN_IDX, ADDRESS_CITY_IDX, ADDRESS_COUNTY_IDX, ADDRESS_STATE_IDX, ADDRESS_POSTCODE_IDX], 
                       ID_TAG);
 
       $provide.constant('ADDRSCHEMA', {
@@ -61,6 +64,7 @@ angular.module('ct.clientCommon')
         ADDRESS_TOWN_IDX: ADDRESS_TOWN_IDX,
         ADDRESS_CITY_IDX: ADDRESS_CITY_IDX,
         ADDRESS_COUNTY_IDX: ADDRESS_COUNTY_IDX,
+        ADDRESS_STATE_IDX: ADDRESS_STATE_IDX,
         ADDRESS_POSTCODE_IDX: ADDRESS_POSTCODE_IDX,
         ADDRESS_GPS_IDX: ADDRESS_GPS_IDX,
 
@@ -150,6 +154,9 @@ function addressFactory($filter, $injector, baseURL, consoleService, storeFactor
           case ADDRSCHEMA.ADDRESS_COUNTY_IDX:
             sortFxn = compareCounty;
             break;
+          case ADDRSCHEMA.ADDRESS_STATE_IDX:
+            sortFxn = compareState;
+            break;
           case ADDRSCHEMA.ADDRESS_POSTCODE_IDX:
             sortFxn = comparePostcode;
             break;
@@ -162,24 +169,32 @@ function addressFactory($filter, $injector, baseURL, consoleService, storeFactor
     return sortFxn;
   }
 
+  function compareStringFields (idx, a, b) {
+    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, idx, a, b);
+  }
+
   function compareAddress (a, b) {
-    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_ADDR_IDX, a, b);
+    return compareStringFields(ADDRSCHEMA.ADDRESS_ADDR_IDX, a, b);
   }
 
   function compareTown (a, b) {
-    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_TOWN_IDX, a, b);
+    return compareStringFields(ADDRSCHEMA.ADDRESS_TOWN_IDX, a, b);
   }
 
   function compareCity (a, b) {
-    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_CITY_IDX, a, b);
+    return compareStringFields(ADDRSCHEMA.ADDRESS_CITY_IDX, a, b);
   }
 
   function compareCounty (a, b) {
-    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_COUNTY_IDX, a, b);
+    return compareStringFields(ADDRSCHEMA.ADDRESS_COUNTY_IDX, a, b);
+  }
+
+  function compareState (a, b) {
+    return compareStringFields(ADDRSCHEMA.ADDRESS_STATE_IDX, a, b);
   }
 
   function comparePostcode (a, b) {
-    return compareFactory.compareStringFields(ADDRSCHEMA.SCHEMA, ADDRSCHEMA.ADDRESS_POSTCODE_IDX, a, b);
+    return compareStringFields(ADDRSCHEMA.ADDRESS_POSTCODE_IDX, a, b);
   }
 
   function stringifyAddress (addr, join) {

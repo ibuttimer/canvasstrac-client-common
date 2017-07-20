@@ -153,7 +153,8 @@ function userFactory($injector, $filter, storeFactory, resourceFactory, compareF
     addInterface: factory, // add standard factory functions to this factory
     resources: {
       user: resourceFactory.getResourceConfigWithId('users'),
-      count: resourceFactory.getResourceConfig('users/count')
+      count: resourceFactory.getResourceConfig('users/count'),
+      batch: resourceFactory.getResourceConfig('users/batch')
     }
   });
 
