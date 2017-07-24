@@ -163,7 +163,8 @@ angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCordova', 'ngCo
       USERS: 'usersPriv',
       ELECTIONS: 'electionsPriv',
       CANDIDATES: 'candidatesPriv',
-      CANVASSES: 'canvassesPriv'
+      CANVASSES: 'canvassesPriv',
+      NOTICES: 'noticePriv'
     };
   })())
   .constant('MISC', (function () {

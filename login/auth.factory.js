@@ -20,6 +20,7 @@ angular.module('ct.clientCommon')
     electionsPriv: 0,
     candidatesPriv: 0,
     canvassesPriv: 0,
+    noticePriv: 0,
 
     // mirroring user model properties
     id: '',
@@ -70,7 +71,8 @@ function AuthFactory($resource, $http, $cookies, $timeout, localStore, baseURL, 
     ACCESS.USERS,
     ACCESS.ELECTIONS,
     ACCESS.CANDIDATES,
-    ACCESS.CANVASSES
+    ACCESS.CANVASSES,
+    ACCESS.NOTICES
   ],
   responseProperties = menuAccessProperties.concat([
     'token',
