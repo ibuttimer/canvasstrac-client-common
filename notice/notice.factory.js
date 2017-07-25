@@ -105,7 +105,8 @@ function noticeFactory($filter, $injector, baseURL, consoleService, storeFactory
     addInterface: factory, // add standard factory functions to this factory
     resources: {
       notice: resourceFactory.getResourceConfigWithId('notice'),
-      current: resourceFactory.getResourceConfigWithId('notice/current')
+      current: resourceFactory.getResourceConfigWithId('notice/current'),
+      count: resourceFactory.getResourceConfigWithId('notice/count'),
     }
   });
   
