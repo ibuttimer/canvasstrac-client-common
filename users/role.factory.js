@@ -32,9 +32,6 @@ angular.module('ct.clientCommon')
       var args = angular.copy(details[i]);
       args.id = i;
       
-      var x = schemaProvider.getModelPropObject(args);
-      console.log(x.toString());
-      
       modelProps.push(schemaProvider.getModelPropObject(args));
     }
 
