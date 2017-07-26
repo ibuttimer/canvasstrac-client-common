@@ -67,9 +67,6 @@ resourceFactory.$inject = ['$resource', '$filter', '$injector', 'baseURL', 'stor
 
 function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, miscUtilFactory, pagerFactory, compareFactory, standardFactoryFactory, resourceListFactory, queryFactory, consoleService, SCHEMA_CONST, RESOURCE_CONST) {
 
-  // jic no native implementation is available
-  miscUtilFactory.arrayPolyfill();
-
   // Bindable Members Up Top, https://github.com/johnpapa/angular-styleguide/blob/master/a1/README.md#style-y033
   var factory = {
     NAME: 'resourceFactory',
