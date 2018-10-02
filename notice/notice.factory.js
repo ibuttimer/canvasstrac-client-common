@@ -142,8 +142,8 @@ function noticeFactory($filter, $injector, baseURL, consoleService, storeFactory
 
   /**
    * Convert values read from a server notice response
-   * @param {number}    schema id 
-   * @param {object}    read value
+   * @param {number}    id    notice id
+   * @param {object}    value notice value
    * @returns {object}  Converted value
    */
   function readRspObjectValueConvert (id, value) {

@@ -77,9 +77,11 @@ function geocoderFactory($resource, geocodeURL, CONFIG, GEOCODER) {
 
               onSuccess(latLng, response.results);
             }
+          } else {
+            if (onFailure) {
+              onFailure(response);
+            }
           }
-
-
         },
         // error response
         function (response) {

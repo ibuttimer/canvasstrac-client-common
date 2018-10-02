@@ -53,19 +53,20 @@ function mapsFactory($ionicPlatform, $resource, miscUtilFactory, $cordovaGeoloca
    */
   function getCurrentPosition (options, onSuccess, onFailure) {
 
-    $cordovaGeolocation.getCurrentPosition(options).then(function (position) {
-
-      var latLng = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
-      if (onSuccess) {
-        onSuccess(latLng, position);
-      }
-    }, function (error) {
-      if (onFailure) {
-        onFailure(error);
-      } else {
-        onMapError(error);
-      }
-    });
+    $cordovaGeolocation.getCurrentPosition(options).then(
+      function (position) {
+        if (onSuccess) {
+          var latLng = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
+          onSuccess(latLng, position);
+        }
+      },
+      function (error) {
+        if (onFailure) {
+          onFailure(error);
+        } else {
+          onMapError(error);
+        }
+      });
   }
 
   /**
@@ -163,6 +164,7 @@ function mapsFactory($ionicPlatform, $resource, miscUtilFactory, $cordovaGeoloca
    * @param {object}    address   Address to generate uri for
    * @param {string}    mode      Optional, method of transportation
    * @param {string}    avoid     Optional, features the route should try to avoid
+   * @returns {string}  navigation uri
    *  @see https://developers.google.com/maps/documentation/android-api/intents#launch_turn-by-turn_navigation
    */
   function getNavigationUri(address, mode, avoid) {
@@ -217,6 +219,7 @@ function mapsFactory($ionicPlatform, $resource, miscUtilFactory, $cordovaGeoloca
   /**
    * Generate a google maps navigation url
    * @param {object}    address   Address to generate uri for
+   * @returns {string}  navigation uri
    */
   function getNavigationUrl(address) {
     var addr = addressFactory.stringifyAddress(address, ','),
