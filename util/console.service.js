@@ -86,7 +86,7 @@ ConsoleLogger.prototype.error = function () {
 ConsoleLogger.prototype.objToString = function (obj) {
   var str = '';
   for (var prop in obj) {
-    if (obj.hasOwnProperty(prop)) {
+    if (Object.prototype.hasOwnProperty.call(obj, prop)) {
       if (str) {
         str += ', ';
       }

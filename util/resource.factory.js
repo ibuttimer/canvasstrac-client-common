@@ -170,7 +170,7 @@ function resourceFactory ($resource, $filter, $injector, baseURL, storeFactory, 
     });
     // copy add list entries
     addlist.forEach(function (prop) {
-      if (src.hasOwnProperty(prop)) {
+      if (miscUtilFactory.hasProperty(src, prop)) {
         dst[prop] = src[prop];
       }
     });
