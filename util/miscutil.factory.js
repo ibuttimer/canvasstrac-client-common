@@ -20,6 +20,7 @@ function miscUtilFactory () {
     copyProperties: copyProperties,
     copyAndAddProperties: copyAndAddProperties,
     removeProperties: removeProperties,
+    hasProperty: hasProperty,
     isEmpty: isEmpty,
     isObject: isObject,
     isNullOrUndefined: isNullOrUndefined,
@@ -106,6 +107,16 @@ function miscUtilFactory () {
       });
     }
     return from;
+  }
+
+  /**
+   * Check if an object has the specified property
+   * @param {object} object Object to check
+   * @param {string} property Name of property to check for
+   * @returns {boolean} true if has property
+   */
+  function hasProperty(object, property) {
+    return Object.prototype.hasOwnProperty.call(object, property);
   }
 
   /**
@@ -437,8 +448,8 @@ function miscUtilFactory () {
       forEach = 'forEach';     // Array forEachfunction
     }
     array[forEach](function (entry) {
-      if (entry.hasOwnProperty(prop)) {
-        if (map.hasOwnProperty(entry[prop])) {
+      if (hasProperty(entry, prop)) {
+        if (hasProperty(map, entry[prop])) {
           throw new Error('Map already has property ' + entry[prop]);
         } else {
           map[entry[prop]] = entry;

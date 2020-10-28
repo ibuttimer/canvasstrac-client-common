@@ -260,7 +260,7 @@ angular.module('ct.clientCommon')
     function getModelPropObject(args) {
       var vals = {};
       modelPropProperties.forEach(function (prop) {
-        if (args.hasOwnProperty(prop)) {
+        if (Object.prototype.hasOwnProperty.call(args, prop)) {
           vals[prop] = args[prop];
         } else {
           vals[prop] = undefined;
@@ -629,7 +629,7 @@ angular.module('ct.clientCommon')
       for (var prop in args) {
         tested = true;
         ++target;
-        if (obj.hasOwnProperty(prop)) {
+        if (Object.prototype.hasOwnProperty.call(obj, prop)) {
           if (typeof args[prop] === 'function') {
             if (args[prop](obj[prop])) {
               ++hits;
@@ -1268,7 +1268,7 @@ angular.module('ct.clientCommon')
 
             // if it has the property read & possibly convert it, otherwise set to undefined
             read = undefined;
-            if (from.hasOwnProperty(property)) {
+            if (Object.prototype.hasOwnProperty.call(from, property)) {
               read = from[property];
 
               /* need to pass run stage injector to Schema object as since it is created during the config

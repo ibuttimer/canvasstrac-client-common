@@ -2,7 +2,7 @@
 /*global angular */
 'use strict';
 
-angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCordova', 'ngCookies'])
+angular.module('ct.clientCommon', ['ct.config', 'ngResource', 'ngCookies'])
 
   .constant('geocodeURL', 'https://maps.googleapis.com/maps/api/geocode/json')
   .constant('PLATFORM', (function () {
